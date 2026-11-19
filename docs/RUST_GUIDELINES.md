@@ -58,6 +58,7 @@ Server/
 │  ├─ net/               # 프레이밍 코덱, 링크 송수신 등 공유 네트워크 코드
 │  ├─ infra/             # 공용 운영 코드: 설정 로드, 로그 초기화, 지표, 관리 포트. 다른 크레이트에 의존하지 않음
 │  ├─ gateway/           # Gateway 바이너리 (설계 02)
+│  ├─ publisher/         # 퍼블리셔 로그인 서버 바이너리 (설계 07). 게임 크레이트와 분리. Login DB만 쓴다
 │  ├─ server/            # 바이너리. Game 서버, 전투 서버, 클러스터 서비스를 역할(role)로 띄움. tokio, 조립(wiring)
 │  ├─ bot/               # 창 없는 테스트/부하용 봇 바이너리. 세션 계약의 참조 구현
 │  ├─ client/            # GUI 테스트 클라이언트 (Bevy + bevy_egui, 설계 10)
@@ -76,6 +77,7 @@ gateway ──> net         │
 bot ───────> net ───────┘
 client ────> net        (protocol은 net을 통해)
 launcher                (게임 크레이트에 의존하지 않음)
+publisher ──> db        (Login DB 모듈만. game, net에 의존하지 않음)
 바이너리 크레이트(server, gateway, bot, client, launcher) ──> infra   (infra는 아무것에도 의존하지 않음)
 ```
 
