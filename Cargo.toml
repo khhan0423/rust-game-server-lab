@@ -1,0 +1,59 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+publish = false
+
+[workspace.dependencies]
+# 외부 크레이트 버전은 여기에서만 관리한다 (가이드 13장)
+anyhow = "1.0.104"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
+clap = { version = "4.6.8", features = ["derive"] }
+metrics = "0.24.6"
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
+reqwest = { version = "0.13.5", default-features = false }
+serde = { version = "1", features = ["derive"] }
+sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros"] }
+thiserror = "2.0.21"
+tokio = "1"
+tokio-util = "0.7.20"
+toml = "1.2.1"
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["json"] }
+
+# 워크스페이스 크레이트
+db = { path = "crates/db" }
+infra = { path = "crates/infra" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+# 그룹: 더 엄격한 제안을 켠다 (priority -1 = 개별 설정보다 먼저 적용)
+pedantic = { level = "warn", priority = -1 }
+# pedantic 중 초반 학습에 소음이 큰 것만 끈다
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# 패닉 경로 금지
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+# 디버그 출력 금지 (tracing 사용)
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+# lint 예외는 #[expect(..., reason = "...")]만 허용
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+# 정수/형변환 안전
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
