@@ -29,7 +29,7 @@ git restore --source=dev -- crates/net
 git commit -m "net: ..."
 # ...
 
-git diff main dev --stat        # must print nothing (main and dev have identical content)
+git diff --stat main dev --       # must print nothing (main and dev have identical content)
 scripts/gate.sh                 # the gate must pass on main as well
 git push origin main
 
@@ -38,7 +38,7 @@ git merge main                  # align dev with main (no content change)
 git push origin dev
 ```
 
-- `main` and `dev` have **the same content and differ only in how commits are grouped.** Verify with an empty `git diff main dev`.
+- `main` and `dev` have **the same content and differ only in how commits are grouped.** Verify with an empty `git diff main dev --`.
 - If the `dev` commits are already grouped by category, `main` may simply fast-forward to `dev`.
 - The history of `main` is never rewritten (no force push).
 

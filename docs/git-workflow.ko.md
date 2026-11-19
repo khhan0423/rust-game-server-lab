@@ -29,7 +29,7 @@ git restore --source=dev -- crates/net
 git commit -m "net: ..."
 # ...
 
-git diff main dev --stat        # 아무것도 나오지 않아야 한다 (main과 dev의 내용이 같다)
+git diff --stat main dev --       # 아무것도 나오지 않아야 한다 (main과 dev의 내용이 같다)
 scripts/gate.sh                 # main에서도 게이트 통과 확인
 git push origin main
 
@@ -38,7 +38,7 @@ git merge main                  # dev의 기준을 main에 맞춘다 (내용 변
 git push origin dev
 ```
 
-- `main`과 `dev`의 **내용은 같고 커밋 묶음만 다르다.** `git diff main dev`가 비어 있는 것으로 확인한다.
+- `main`과 `dev`의 **내용은 같고 커밋 묶음만 다르다.** `git diff main dev --`가 비어 있는 것으로 확인한다.
 - `dev`의 커밋이 이미 분류별로 묶여 있으면 `main`을 `dev`로 그대로 앞으로 옮겨도 된다(fast-forward).
 - `main`의 이력은 다시 쓰지 않는다(강제 푸시 금지).
 
