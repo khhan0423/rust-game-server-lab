@@ -11,11 +11,28 @@ pub(super) enum Action {
     LogIn,
 }
 
+/// Events in the local account reset flow.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Reset {
+    Request,
+    Cancel,
+    Confirmed,
+}
+
+/// The reset controls that the login panel can show.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ResetControls {
+    Disabled,
+    Available,
+    Confirming,
+}
+
 /// Login button availability.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Buttons {
     pub(super) create: bool,
     pub(super) log_in: bool,
+    pub(super) reset: ResetControls,
 }
 
 /// The non-secret details of the most recent entry ticket.
@@ -32,112 +49,6 @@ impl Ticket {
     pub(super) fn remaining(&self, now: Instant) -> Duration {
         self.ttl
             .saturating_sub(now.saturating_duration_since(self.received))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::profile::tests::credentials;
-
-    enum Input {
-        Start(Action),
-        Finish(Outcome),
-    }
-
-    #[test]
-    fn operations_follow_their_prerequisites_and_restore_controls_after_completion() {
-        use std::mem::discriminant;
-
-        let ticket = || Ticket {
-            prefix: "12345678".into(),
-            entry_url: "http://127.0.0.1:7200".into(),
-            received: Instant::now(),
-            ttl: Duration::from_secs(60),
-        };
-        let create = Buttons {
-            create: true,
-            log_in: false,
-        };
-        let log_in = Buttons {
-            create: false,
-            log_in: true,
-        };
-        let busy = Buttons {
-            create: false,
-            log_in: false,
-        };
-        let failed = || State::Failed("test failure".into());
-        let failure = || Input::Finish(Outcome::Failed("test failure".into()));
-        let mut machine = Login::new(None);
-        assert!(matches!(machine.state(), State::NoAccount));
-        assert_eq!(machine.buttons(), create);
-        let rows = [
-            (Input::Start(Action::LogIn), State::NoAccount, &create),
-            (Input::Start(Action::Create), State::CreatingAccount, &busy),
-            (Input::Start(Action::Create), State::CreatingAccount, &busy),
-            (
-                Input::Finish(Outcome::LoggedIn(ticket())),
-                State::CreatingAccount,
-                &busy,
-            ),
-            (failure(), failed(), &create),
-            (Input::Start(Action::Create), State::CreatingAccount, &busy),
-            (
-                Input::Finish(Outcome::Created(credentials())),
-                State::Ready,
-                &log_in,
-            ),
-            (Input::Start(Action::Create), State::Ready, &log_in),
-            (Input::Start(Action::LogIn), State::LoggingIn, &busy),
-            (failure(), failed(), &log_in),
-            (Input::Start(Action::LogIn), State::LoggingIn, &busy),
-            (
-                Input::Finish(Outcome::LoggedIn(ticket())),
-                State::TicketHeld(ticket()),
-                &log_in,
-            ),
-            (Input::Start(Action::LogIn), State::LoggingIn, &busy),
-        ];
-        for (index, (input, state, buttons)) in rows.into_iter().enumerate() {
-            match input {
-                Input::Start(action) => machine.begin(action),
-                Input::Finish(outcome) => machine.complete(outcome),
-            }
-            assert_eq!(
-                discriminant(machine.state()),
-                discriminant(&state),
-                "state after step {index}"
-            );
-            assert_eq!(&machine.buttons(), buttons, "controls after step {index}");
-        }
-        assert!(machine.is_saved());
-        let restored = Login::new(Some(credentials()));
-        assert!(matches!(restored.state(), State::Ready));
-        assert_eq!(restored.buttons(), log_in);
-    }
-
-    #[test]
-    fn save_failure_preserves_the_only_copy_of_the_guest_credentials() {
-        let mut login = Login::new(None);
-        let credentials = credentials();
-        login.begin(Action::Create);
-
-        login.complete(Outcome::Unsaved {
-            credentials: credentials.clone(),
-            error: "disk full".into(),
-        });
-
-        assert!(matches!(login.state(), State::Failed(_)));
-        assert_eq!(login.credentials(), Some(&credentials));
-        assert!(!login.is_saved());
-        assert_eq!(
-            login.buttons(),
-            Buttons {
-                create: false,
-                log_in: true
-            }
-        );
     }
 }
 
@@ -170,6 +81,7 @@ pub(super) struct Login {
     credentials: Option<Credentials>,
     saved: bool,
     state: State,
+    confirming_reset: bool,
 }
 
 impl Login {
@@ -184,6 +96,7 @@ impl Login {
             } else {
                 State::NoAccount
             },
+            confirming_reset: false,
         }
     }
 
@@ -204,15 +117,32 @@ impl Login {
 
     /// Returns controls that can start an operation in the current state.
     pub(super) const fn buttons(&self) -> Buttons {
-        match self.state {
-            State::CreatingAccount | State::LoggingIn => Buttons {
-                create: false,
-                log_in: false,
+        let idle = match self.state {
+            State::CreatingAccount | State::LoggingIn => false,
+            State::NoAccount | State::Ready | State::TicketHeld(_) | State::Failed(_) => true,
+        } && !self.confirming_reset;
+        Buttons {
+            create: idle && self.credentials.is_none(),
+            log_in: idle && self.credentials.is_some(),
+            reset: if self.confirming_reset {
+                ResetControls::Confirming
+            } else if idle && self.saved {
+                ResetControls::Available
+            } else {
+                ResetControls::Disabled
             },
-            State::NoAccount | State::Ready | State::TicketHeld(_) | State::Failed(_) => Buttons {
-                create: self.credentials.is_none(),
-                log_in: self.credentials.is_some(),
-            },
+        }
+    }
+
+    /// Updates confirmation, or forgets the account once its file has been removed.
+    pub(super) fn reset(&mut self, event: Reset) {
+        match event {
+            Reset::Request if matches!(self.buttons().reset, ResetControls::Available) => {
+                self.confirming_reset = true;
+            }
+            Reset::Cancel => self.confirming_reset = false,
+            Reset::Confirmed if self.confirming_reset => *self = Self::new(None),
+            Reset::Request | Reset::Confirmed => {}
         }
     }
 
@@ -255,3 +185,6 @@ impl Login {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

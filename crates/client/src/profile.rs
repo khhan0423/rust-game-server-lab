@@ -111,6 +111,14 @@ pub(super) fn load(path: &Path) -> Result<Option<Credentials>, ProfileError> {
     }
 }
 
+/// Deletes the guest credentials; an already absent file counts as success.
+pub(super) fn delete(path: &Path) -> io::Result<()> {
+    match std::fs::remove_file(path) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        result => result,
+    }
+}
+
 /// Saves the guest credentials on the worker after account creation.
 pub(super) async fn save(path: &Path, credentials: &Credentials) -> Result<(), ProfileError> {
     let serialized = toml::to_string(credentials).map_err(|_| ProfileError::Encode)?;
@@ -173,5 +181,17 @@ pub(super) mod tests {
             load(&dir.0.join("missing.toml")).expect("load missing profile"),
             None
         );
+    }
+
+    #[test]
+    fn deleting_profile_removes_file_and_accepts_absence() {
+        let dir = TempProfile::new();
+        let path = dir.0.join("guest.toml");
+        std::fs::write(&path, "saved guest profile").expect("write profile file");
+
+        delete(&path).expect("delete profile file");
+
+        assert!(!path.try_exists().expect("check profile file"));
+        delete(&path).expect("delete already absent profile file");
     }
 }

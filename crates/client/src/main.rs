@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
         .context("start client operation logging")?;
     let profile_path = args.profile.path(&args.data_dir);
     let credentials = profile::load(&profile_path).context("load guest profile")?;
-    let (net, worker) = net::start(profile_path).context("start publisher worker")?;
+    let (net, worker) = net::start(profile_path.clone()).context("start publisher worker")?;
     tracing::info!(profile = %args.profile, "test client starting");
     let exit = App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
         .add_plugins(EguiPlugin::default())
         .insert_resource(ClearColor(Color::srgb(0.065, 0.078, 0.098)))
         .insert_resource(fonts::Fallback::load())
-        .insert_resource(ui::LoginPanel::new(args.profile, credentials))
+        .insert_resource(ui::LoginPanel::new(args.profile, profile_path, credentials))
         .insert_resource(net)
         .add_systems(
             PreStartup,

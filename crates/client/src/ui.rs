@@ -1,20 +1,22 @@
 //! Displays the login controls, operation log, and world view message.
 
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
 
-use crate::login::{Action, Login, Outcome, State};
+use crate::login::{Action, Login, Outcome, Reset, ResetControls, State};
 use crate::net::{Command, Event, Net};
-use crate::profile::{Credentials, ProfileName};
+use crate::profile::{self, Credentials, ProfileName};
 
 /// Editable inputs and display state for the selected profile.
 #[derive(Debug, Resource)]
 pub(super) struct LoginPanel {
     profile: ProfileName,
+    profile_path: PathBuf,
     publisher_url: String,
     game_id: String,
     login: Login,
@@ -24,13 +26,18 @@ pub(super) struct LoginPanel {
 
 impl LoginPanel {
     /// Initializes the login panel from the saved profile, if one exists.
-    pub(super) fn new(profile: ProfileName, credentials: Option<Credentials>) -> Self {
+    pub(super) fn new(
+        profile: ProfileName,
+        profile_path: PathBuf,
+        credentials: Option<Credentials>,
+    ) -> Self {
         let publisher_url = credentials.as_ref().map_or_else(
             || "http://127.0.0.1:18100".into(),
             |credentials| credentials.publisher_url.clone(),
         );
         Self {
             profile,
+            profile_path,
             publisher_url,
             game_id: "lab".into(),
             login: Login::new(credentials),
@@ -105,25 +112,19 @@ impl LoginPanel {
         ui.add(egui::TextEdit::singleline(&mut self.game_id).desired_width(f32::INFINITY));
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(
-                    self.worker_available && buttons.create,
-                    egui::Button::new("Create guest account"),
-                )
-                .clicked()
-            {
-                self.submit(Action::Create, net);
-            }
-            if ui
-                .add_enabled(
-                    self.worker_available && buttons.log_in,
-                    egui::Button::new("Log in"),
-                )
-                .clicked()
-            {
-                self.submit(Action::LogIn, net);
+            for (action, enabled, label) in [
+                (Action::Create, buttons.create, "Create guest account"),
+                (Action::LogIn, buttons.log_in, "Log in"),
+            ] {
+                if ui
+                    .add_enabled(self.worker_available && enabled, egui::Button::new(label))
+                    .clicked()
+                {
+                    self.submit(action, net);
+                }
             }
         });
+        self.draw_reset(ui, buttons.reset);
         ui.separator();
         ui.heading("Status");
         let state = match self.login.state() {
@@ -158,6 +159,38 @@ impl LoginPanel {
         }
         ui.separator();
         ui.small("Font check: 한글 가나다");
+    }
+
+    fn draw_reset(&mut self, ui: &mut egui::Ui, controls: ResetControls) {
+        let enabled = match controls {
+            ResetControls::Available => true,
+            ResetControls::Disabled => false,
+            ResetControls::Confirming => {
+                ui.label("This forgets the guest account saved for this profile on this PC. It cannot be recovered.");
+                ui.horizontal(|ui| {
+                if ui.button("Confirm reset").clicked() {
+                    match profile::delete(&self.profile_path) {
+                        Ok(()) => {
+                            self.login.reset(Reset::Confirmed);
+                            self.record("Guest account reset for this profile");
+                        }
+                        Err(error) => {
+                            tracing::warn!(profile = %self.profile, %error, "could not reset guest account");
+                            self.record(&format!("Error: Could not reset guest account: {error}"));
+                        }
+                    }
+                }
+                if ui.button("Cancel").clicked() {
+                    self.login.reset(Reset::Cancel);
+                }
+            });
+                return;
+            }
+        };
+        let button = egui::Button::new("Reset account");
+        if ui.add_enabled(enabled, button).clicked() {
+            self.login.reset(Reset::Request);
+        }
     }
 }
 
