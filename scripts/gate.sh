@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# 품질 게이트 (가이드 0장). 워크스페이스 루트에서 실행한다. 테스트에는 개발용 PostgreSQL이 필요하다.
+# Quality gate (guidelines section 0). Run from the workspace root. Tests need the development PostgreSQL.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# An already set DATABASE_URL (compose provides it inside the container) is not overwritten by the .env value.
+preset_database_url="${DATABASE_URL:-}"
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
+if [ -n "$preset_database_url" ]; then export DATABASE_URL="$preset_database_url"; fi
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace

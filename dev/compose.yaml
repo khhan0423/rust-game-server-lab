@@ -1,5 +1,5 @@
-# 개발 PC용 PostgreSQL과 Valkey. 운영에서는 DB가 따로 떨어지지만 개발에서는 한 인스턴스에 모은다.
-# 사용: docker compose --env-file .env -f dev/compose.yaml up -d --wait
+# PostgreSQL and Valkey for the development PC. In production the DBs are separate, but in development they share one instance.
+# Usage: docker compose --env-file .env -f dev/compose.yaml up -d --wait
 name: gameserver-dev
 
 services:
@@ -28,5 +28,27 @@ services:
       timeout: 3s
       retries: 30
 
+  # Runs the quality gate on Linux. It does not start normally; it runs only with the command below.
+  # docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate
+  linux-gate:
+    profiles: ["tools"]
+    image: rust:1.100-bookworm
+    working_dir: /workspace
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/postgres
+      CARGO_TARGET_DIR: /target
+    volumes:
+      - ..:/workspace
+      - rustup_home:/usr/local/rustup
+      - cargo_home:/usr/local/cargo
+      - linux_target:/target
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["bash", "scripts/gate.sh"]
+
 volumes:
   postgres_data:
+  rustup_home:
+  cargo_home:
+  linux_target:

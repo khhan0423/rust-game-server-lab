@@ -1,4 +1,4 @@
-# 품질 게이트 (가이드 0장). 테스트에는 개발용 PostgreSQL이 필요하다.
+# Quality gate (guidelines section 0). Tests need the development PostgreSQL.
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 if (Test-Path .env) {
