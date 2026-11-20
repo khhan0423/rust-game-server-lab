@@ -54,12 +54,12 @@ A phase is complete only when all of the following are done.
 | P0 | Foundation | **Done** (2026-11-19) | Crates `infra`, `db`, `server`, `gateway`. 14 tests. Gate passed on Windows (MSVC, Rust 1.100.0) and on Linux (the `linux-gate` container on Rancher Desktop, 2026-11-20) |
 | P1 | Protocol and frames | Not started | |
 | P2 | Server launcher | Not started | |
-| P3 | Connection and session | Not started | Includes the publisher login server |
+| P3 | Connection and session | In progress | Publisher login server done (guest login, entry tickets, verification API; 2026-11-20). Entry server, gateway sessions, and bot remain |
 | P4 | Content actors and DB | Not started | |
 | P5 | Zone and lobby | Not started | |
 | P6 | Cross-shard messaging and recovery | Not started | |
 | P6.5 | Minimal operations tool | Not started | Server status, notices, maintenance, kick, grants (design 12) |
-| P7 | GUI test client | Not started | Runs in parallel from P3 |
+| P7 | GUI test client | In progress | Window, login panel, and log panel done; guest login against the login server works (2026-11-20). World view and game panels remain |
 | P8 | Reconnect | Not started | |
 | P9 | Load measurement and verdict | Not started | |
 | D1~D9 | Development phases | After pilot verdict | |

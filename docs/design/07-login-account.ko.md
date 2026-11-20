@@ -144,6 +144,48 @@ CREATE TABLE game_memberships (                -- 어떤 게임을 가졌나, �
 | **통지** (퍼블리셔 → 게임, webhook) | 플랫폼 제재, 탈퇴, 회원 해지. 게임은 해당 플레이어를 Kick하고 상태를 반영 |
 | 게임 → 퍼블리셔 인증 | 서버 간 인증 (API 키 또는 mTLS). 사설망 또는 허용 목록 |
 
+### 2.6 파일럿 구현: 게스트 로그인 API
+
+파일럿에서는 Login 서버를 게스트 수단만으로 만든다. 다른 수단은 나중에 같은 구조에 붙인다. 서버는 `publisher` 크레이트이고, SQL은 `db` 크레이트의 `login` 모듈에 둔다. 게임 쪽 크레이트는 LoginDB에 접근하지 않는다.
+
+요청과 응답은 모두 HTTP 위의 JSON이다. 에러 응답은 `{ "error": "<코드>" }`이고 상태 코드는 아래 표와 같다.
+
+| 호출 | 누가 부르나 | 요청 | 성공 응답 |
+|---|---|---|---|
+| `POST /v1/guest/accounts` | 클라이언트, 처음 실행할 때 | `{}` | `201` `{ "account_id", "guest_id", "secret" }`. 비밀값은 이때 한 번만 내려간다 |
+| `POST /v1/guest/login` | 클라이언트 | `{ "guest_id", "secret", "game_id" }` | `200` `{ "account_id", "ticket", "expires_in_secs", "entry_url" }` |
+| `POST /v1/tickets/verify` | 게임 Entry 서버, `x-api-key` 헤더와 함께 | `{ "ticket", "game_id" }` | `200` `{ "account_id", "membership", "sanction" }`. 확인하면 티켓이 소모된다 |
+
+| 에러 코드 | 상태 | 언제 |
+|---|---|---|
+| `invalid_request` | 400 | 본문에 필드가 빠졌거나 형식이 틀림 |
+| `invalid_credentials` | 401 | 모르는 게스트 ID이거나 비밀값이 틀림. 두 경우를 구분하지 않는다 |
+| `unauthorized` | 401 | 확인 호출에 API 키가 없거나 틀림 |
+| `account_blocked` | 403 | 계정이 플랫폼 제재 중이거나 탈퇴 대기 중 |
+| `unknown_game` | 404 | `game_id`가 Login 서버 설정에 없음 |
+| `ticket_invalid` | 404 | 모르는 티켓, 만료된 티켓, 이미 쓴 티켓, 다른 게임용 티켓. 경우를 구분하지 않는다 |
+| `internal_error` | 500 | DB에 접속할 수 없는 경우처럼 서버 쪽 사정으로 실패함. 자세한 내용은 운영 로그에 남기고 호출한 쪽에는 주지 않는다 |
+
+- `account_id`와 `guest_id`는 UUID v7 문자열이다. `secret`과 `ticket`은 무작위 32바이트를 16진수 64자로 적은 것이다.
+- LoginDB에는 비밀값과 티켓의 SHA-256 해시만 저장한다. 파일럿에서는 DB의 내장 `sha256()`으로 해시를 계산한다. 이 서버가 실제 유저를 받기 전에 해시 계산을 서버 프로세스 안으로 옮겨, 원래 값이 DB까지 가지 않게 한다.
+- 확인 응답의 `membership`은 `"member"`, `"canceled"`, `"sanctioned"` 중 하나(그 게임에서의 계정 상태)이고, `sanction`은 `"none"`, `"sanctioned"`, `"closing"` 중 하나(계정의 플랫폼 상태)다. 둘 다 문자열이라 DB의 숫자 표현이 드러나지 않고, 나중에 값을 추가할 수 있다.
+- 확인은 유효한 티켓을 항상 소모하고 현재 상태를 알려 준다. 제재 때문에 거절하지는 않는다. 판단은 게임의 Entry 서버가 하고, `membership`이 `"member"`이고 `sanction`이 `"none"`일 때만 입장시킨다.
+- Login 서버가 거절하는 곳은 로그인이다. 계정이 활성 상태가 아니거나 그 게임의 멤버십이 제재 상태면 `account_blocked`로 답한다. 해지된 멤버십은 로그인하면 다시 멤버가 된다.
+- 티켓의 수명은 기본 60초(설정값)이고 한 번만 쓸 수 있다. 소모는 조건부 `UPDATE` 한 번이고, 바뀐 행 수로 성공을 판단한다.
+- 어떤 게임에 처음 로그인하면 그 계정의 멤버십이 만들어진다. 유료 게임의 보유 확인은 스팀 수단과 함께 넣는다.
+- 확인 호출의 API 키와 LoginDB 접속 문자열은 비밀값이라 환경 변수에서 읽는다.
+- 티켓은 2.4의 초안에 없던 테이블에 저장한다.
+
+```sql
+CREATE TABLE entry_tickets (
+    ticket_hash  bytea PRIMARY KEY,
+    account_id   text NOT NULL REFERENCES accounts(account_id),
+    game_id      text NOT NULL,
+    expires_at   timestamptz NOT NULL,
+    consumed_at  timestamptz
+);
+```
+
 ---
 
 ## 3. 게임 Entry 서버 (게임 영역)

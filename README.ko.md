@@ -15,9 +15,9 @@
 
 설계의 뼈대가 실제 코드에서 맞물리는지 확인하는 파일럿 단계입니다. 전체 계획은 [docs/plan/README.md](docs/plan/README.ko.md)에 있습니다.
 
-지금 있는 것은 크레이트 네 개(`infra`, `db`, `server`, `gateway`)로 구성된 Cargo 워크스페이스, 데이터베이스가 없거나 스키마가 오래됐거나 비밀값이 없으면 아예 뜨지 않는 기동 절차, 개발용 데이터베이스 환경, 품질 게이트 스크립트, 테스트 14개입니다. Windows(MSVC)와 Linux에서 빌드되고 테스트를 통과합니다. Linux 쪽은 컨테이너에서 돌립니다.
+지금 있는 것은 크레이트 여섯 개로 된 Cargo 워크스페이스입니다. 게임 서버와 Gateway는 아직 뼈대지만, 데이터베이스가 없거나 스키마가 오래됐거나 비밀값이 없으면 아예 뜨지 않습니다. 퍼블리셔 로그인 서버는 동작합니다. 게스트 계정을 만들고, 로그인시키고, 게임 쪽이 확인할 수 있는 짧은 수명의 일회용 입장 티켓을 내줍니다. GUI 테스트 클라이언트는 창을 띄우고, 그 서버에 게스트 계정을 만들어 로그인할 수 있습니다. 여기에 개발용 데이터베이스 환경과 품질 게이트가 있습니다. Windows(MSVC)와 Linux에서 빌드되고 테스트를 통과합니다. Linux 쪽은 컨테이너에서 돌립니다.
 
-다음은 프로토콜과 프레임 코덱입니다. 그 뒤로 런처, 접속과 세션이 이어집니다. 퍼블리셔 로그인 서버, Entry 서버, GUI 테스트 클라이언트, 봇, 전투 서버, 존, 컨텐츠는 그다음에 계획 문서가 정한 순서대로 만듭니다.
+다음은 프로토콜과 프레임 코덱, 그리고 Entry 서버와 Gateway 세션입니다. 로그인 서버가 준 티켓으로 클라이언트가 실제로 게임 서버에 들어가게 하는 부분입니다. 런처, 봇, 전투 서버, 존, 컨텐츠는 그다음에 계획 문서가 정한 순서대로 만듭니다.
 
 ## 구조
 
@@ -59,6 +59,8 @@ crates/
   db/         DB 접근 전담. SQL은 여기에만 둔다
   server/     Game 서버 바이너리
   gateway/    Gateway 바이너리
+  publisher/  퍼블리셔 로그인 서버 바이너리 (게스트 로그인, 입장 티켓)
+  client/     GUI 테스트 클라이언트 (Bevy와 egui)
 migrations/   DB 마이그레이션
 dev/          개발용 PostgreSQL, Valkey 구성
 scripts/      품질 게이트 스크립트
@@ -90,6 +92,16 @@ scripts/gate.sh        # Windows PowerShell: scripts/gate.ps1
 ```
 
 테스트는 실제 PostgreSQL에서 돕니다. 서버 프로세스를 직접 띄우고, 준비에 실패하는 경우(DB 없음, 스키마 불일치, 비밀값 없음)에는 뜨지 않는지도 확인합니다.
+
+로그인 흐름을 해 보려면 터미널 두 개에서 로그인 서버와 테스트 클라이언트를 띄웁니다. 둘 다 `.env`의 변수가 환경에 있어야 합니다. 처음 띄우기 전에 `migrate` 명령을 한 번 실행합니다.
+
+```sh
+cargo run -p publisher -- --config dev/config/publisher.toml migrate
+cargo run -p publisher -- --config dev/config/publisher.toml run
+cargo run -p client -- --profile alice
+```
+
+클라이언트 창에서 "Create guest account"를 누르고 "Log in"을 누릅니다. 프로필마다 게스트 계정을 `client-data/` 아래에 따로 보관하므로 클라이언트 여러 개를 동시에 띄울 수 있습니다.
 
 서버는 Linux에서 돌릴 것이라, 같은 게이트를 같은 런타임의 Linux 컨테이너에서도 돌립니다.
 

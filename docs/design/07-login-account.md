@@ -145,6 +145,48 @@ Publisher data such as terms acceptance records, personal information, and payme
 | **Notification** (publisher → game, webhook) | Platform sanction, account closure, membership cancellation. The game kicks the affected player and updates the status |
 | Game → publisher authentication | Server-to-server authentication (API key or mTLS). Private network or allowlist |
 
+### 2.6 Pilot Implementation: Guest Login API
+
+The pilot builds the Login server with the Guest method only. The other methods attach to the same structure later. The server is the `publisher` crate; its SQL lives in the `login` module of the `db` crate. Game-side crates never touch LoginDB.
+
+All requests and responses are JSON over HTTP. An error response is `{ "error": "<code>" }` with the status shown below.
+
+| Call | Who calls it | Request | Success response |
+|---|---|---|---|
+| `POST /v1/guest/accounts` | Client, on first launch | `{}` | `201` `{ "account_id", "guest_id", "secret" }`. The secret is returned only this once |
+| `POST /v1/guest/login` | Client | `{ "guest_id", "secret", "game_id" }` | `200` `{ "account_id", "ticket", "expires_in_secs", "entry_url" }` |
+| `POST /v1/tickets/verify` | Game Entry server, with the `x-api-key` header | `{ "ticket", "game_id" }` | `200` `{ "account_id", "membership", "sanction" }`. Verification consumes the ticket |
+
+| Error code | Status | When |
+|---|---|---|
+| `invalid_request` | 400 | The body is missing a field or is malformed |
+| `invalid_credentials` | 401 | Unknown guest ID or wrong secret. The two cases are not distinguished |
+| `unauthorized` | 401 | The verification call has no API key or a wrong one |
+| `account_blocked` | 403 | The account is under a platform sanction or pending closure |
+| `unknown_game` | 404 | The `game_id` is not configured on the Login server |
+| `ticket_invalid` | 404 | The ticket is unknown, expired, already used, or was issued for another game. The cases are not distinguished |
+| `internal_error` | 500 | The server failed for a reason of its own, such as the database being unreachable. Details go to the operations log, not to the caller |
+
+- `account_id` and `guest_id` are UUID v7 strings. `secret` and `ticket` are 32 random bytes written as 64 hexadecimal characters.
+- LoginDB stores only the SHA-256 hash of a secret or a ticket. The pilot computes the hash with the database's built-in `sha256()`. Before this server handles real users, hashing moves into the server process so the plain value never reaches the database.
+- In the verification response, `membership` is one of `"member"`, `"canceled"`, `"sanctioned"` (the account's state in that game) and `sanction` is one of `"none"`, `"sanctioned"`, `"closing"` (the account's platform state). Both are strings, so the database encoding is not exposed and values can be added later.
+- Verification always consumes a valid ticket and reports the current states. It does not reject because of a sanction; the game's Entry server decides, and it admits a player only when `membership` is `"member"` and `sanction` is `"none"`.
+- Login is where the Login server refuses: it answers `account_blocked` when the account is not active or its membership in that game is sanctioned. A canceled membership becomes a member again on login.
+- A ticket lives for 60 seconds by default (a config value) and is single-use. Consuming it is one conditional `UPDATE`; the number of affected rows decides success.
+- The first login for a game creates that account's membership. Checking ownership of a paid game comes with the Steam method.
+- The API key for the verification call and the LoginDB connection string are secrets and come from environment variables.
+- Tickets are stored in a table that the draft in 2.4 did not have:
+
+```sql
+CREATE TABLE entry_tickets (
+    ticket_hash  bytea PRIMARY KEY,
+    account_id   text NOT NULL REFERENCES accounts(account_id),
+    game_id      text NOT NULL,
+    expires_at   timestamptz NOT NULL,
+    consumed_at  timestamptz
+);
+```
+
 ---
 
 ## 3. Game Entry Server (Game Domain)

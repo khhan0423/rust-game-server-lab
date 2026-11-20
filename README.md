@@ -15,9 +15,9 @@ This is not a finished game or a framework. Design documents, plans, and code ar
 
 The project is at the pilot stage: verifying the skeleton of the design before building content on top of it. The full plan is in [docs/plan/README.md](docs/plan/README.md).
 
-What exists today is a Cargo workspace with four crates (`infra`, `db`, `server`, `gateway`), a startup sequence that refuses to come up when the database is missing, the schema is out of date, or a secret is missing, a dev environment for the databases, a quality gate script, and 14 tests. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
+What exists today is a Cargo workspace with six crates. The game server and the gateway are still skeletons, but they already refuse to come up when the database is missing, the schema is out of date, or a secret is missing. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
 
-Next up is the protocol and frame codec, followed by the launcher, then login and sessions. The publisher login server, entry server, GUI test client, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
+Next up is the protocol and frame codec, then the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. The launcher, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
 
 ## How it is put together
 
@@ -59,6 +59,8 @@ crates/
   db/         all database access; SQL lives only here
   server/     game server binary
   gateway/    gateway binary
+  publisher/  publisher login server binary (guest login, entry tickets)
+  client/     GUI test client (Bevy and egui)
 migrations/   database migrations
 dev/          PostgreSQL and Valkey for development
 scripts/      quality gate scripts
@@ -90,6 +92,16 @@ scripts/gate.sh        # Windows PowerShell: scripts/gate.ps1
 ```
 
 Tests run against a real PostgreSQL. They start the actual server processes, and they also check that a server refuses to start when startup cannot complete: no database, schema mismatch, or a missing secret.
+
+To try the login flow, start the login server and the test client in two terminals. Both need the variables from `.env` in the environment. Run the `migrate` command once before the first start.
+
+```sh
+cargo run -p publisher -- --config dev/config/publisher.toml migrate
+cargo run -p publisher -- --config dev/config/publisher.toml run
+cargo run -p client -- --profile alice
+```
+
+In the client window, press "Create guest account" and then "Log in". Each profile keeps its own guest account under `client-data/`, so several clients can run side by side.
 
 The servers are meant to run on Linux, so the same gate also runs in a Linux container on the same runtime:
 
