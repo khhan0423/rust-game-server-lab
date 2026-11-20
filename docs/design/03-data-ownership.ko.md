@@ -1,5 +1,7 @@
 # 설계 03. 플레이어 데이터 소유와 샤드 간 플레이
 
+[English](03-data-ownership.md) | **한국어**
+
 - 상태: **초안** (2026-11-18). O7~O10, O12, O14 확정. 전투 서버 보상(O8)은 사례 조사 후 A+D+E로 확정. Redis는 Lua 없이 단일 명령만 쓰는 "공용 게시판"으로 확정
 - 선행 문서: `02-session-network.md` (Gateway, 목적지 두 개, 서버 간 링크)
 - 관련 문서: `01-threading.md` (플레이어 액터, 존 스레드, InGameSpace 구조)

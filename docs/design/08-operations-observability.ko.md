@@ -1,5 +1,7 @@
 # 설계 08. 운영과 관측
 
+[English](08-operations-observability.md) | **한국어**
+
 - 상태: **초안** (2026-11-18). 2026-11-19: 운영 명령은 게임을 막지 않음(2장), DB 시간을 단계별로 나눠 측정(3장), 설정과 비밀(8장) 추가
 - 관련 문서: `04-database.md` 1.1 (로그 세 종류와 경로), `03-data-ownership.md` 9.7 (Redis 서버 등록)
 
@@ -54,7 +56,7 @@ metrics::gauge!("ccu", "shard" => shard_label).set(ccu as f64);
 | 영역 | 지표 |
 |---|---|
 | 접속 | 샤드별, Gateway별 동접. 로그인 성공/실패. **끊김 이유별 횟수**(02 문서 2.3) |
-| Entry | 퍼블리셔 A​PI 응답 시간과 실패, 신규 캐릭터 생성 수, 샤드별 배정 수 |
+| Entry | 퍼블리셔 API 응답 시간과 실패, 신규 캐릭터 생성 수, 샤드별 배정 수 |
 | 존 스레드 | **틱 소요 시간, 틱 초과 횟수**, 활성/휴면 InGameSpace 수 |
 | 플레이어 액터 | 액터 수, inbox 대기 명령 수, 명령 처리 시간, DB 함수 소요 시간, 재시도 횟수, **느린 명령 횟수** (01 문서 5.8) |
 | 채널 | 스레드 간 채널 사용률, 가득 참 횟수 |
@@ -153,7 +155,7 @@ pub enum AnalyticsEvent {
 | 단계 | 구성 | 비용 |
 |---|---|---|
 | **개발** | 코드에 관리 포트와 JSON 로그만. 로그는 터미널과 파일로 확인 | 0 |
-| 개발 중 보고 싶을 때 | 개발 PC(WSL2)에서 Docker로 Prometheus + Grafana | 0 |
+| 개발 중 보고 싶을 때 | 개발 PC의 Rancher Desktop에서 컨테이너로 Prometheus + Grafana | 0 |
 | **첫 라이브** | **운영 VM 한 대**: Prometheus, Grafana, Alertmanager, Fluent Bit 집계기. 각 서버에 Fluent Bit 에이전트. 경보는 Discord 웹훅 | VM 한 대 |
 | 대안 | Grafana Cloud 무료 플랜 (그 시점의 무료 한도 확인 필요) | 한도 안에서 0 |
 | 선택 | 운영 로그 검색이 필요해지면 Loki 등 로그 검색 저장소 추가 | 운영 VM 자원 |

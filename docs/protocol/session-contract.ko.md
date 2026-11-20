@@ -1,5 +1,7 @@
 # 서버-클라이언트 세션 계약
 
+[English](session-contract.md) | **한국어**
+
 - 상태: **초안 v0.1** (2026-11-17)
 - 대상: 서버(Gateway) 개발자, 클라이언트(Unity, Unreal, Godot) 네트워크 계층 개발자
 - 관련 설계: `docs/design/02-session-network.md` (서버 내부 구조)

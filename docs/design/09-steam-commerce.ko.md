@@ -1,14 +1,16 @@
 # 설계 09. 스팀 기반 결제와 아이템 거래
 
+[English](09-steam-commerce.md) | **한국어**
+
 - 상태: **템플릿** (2026-11-19). 구현은 나중에 한다. 지금은 흐름, 데이터의 주인, 결정할 것만 정한다
 - 플랫폼 전제: **결제 수단은 모두 열어 두고 Steam을 먼저 만든다** (소유자 결정, 2026-11-19). Commerce 서비스는 결제 수단별 연동(스팀, 나중에 다른 스토어)을 같은 주문 상태(2.2)와 지급 경로(S5) 위에 붙이는 구조로 만든다. 이 문서는 스팀 연동을 다룬다
 - 관련 문서: `07-login-account.md` (로그인), `03-data-ownership.md` (한 단계에 DB 하나, 멱등 메시지, outbox), `04-database.md` (DB 구성), `08-operations-observability.md` 8장 (비밀)
 - 공식 문서 (2026-11-19 확인):
   - 인게임 구매: https://partner.steamgames.com/doc/features/microtransactions/implementation
-  - 인게임 구매 Web A​PI: https://partner.steamgames.com/doc/webapi/ISteamMicroTxn
+  - 인게임 구매 Web API: https://partner.steamgames.com/doc/webapi/ISteamMicroTxn
   - 인벤토리 서비스: https://partner.steamgames.com/doc/features/inventory
   - 아이템 정의(ItemDef): https://partner.steamgames.com/doc/features/inventory/schema
-  - 인벤토리 Web A​PI: https://partner.steamgames.com/doc/webapi/IInventoryService
+  - 인벤토리 Web API: https://partner.steamgames.com/doc/webapi/IInventoryService
   - 사용자 인증: https://partner.steamgames.com/doc/features/auth
   - 커뮤니티 장터 FAQ: https://help.steampowered.com/en/faqs/view/61F0-72B7-9A18-C70B
 
@@ -17,7 +19,7 @@
 | # | 결정 | 내용 |
 |---|---|---|
 | S1 | 기능 두 가지 | **(A) 인게임 구매**: 스팀 지갑으로 우리 상품(재화, 패키지)을 산다. **(B) 스팀 아이템**: 일부 아이템을 스팀 인벤토리에 두어 커뮤니티 장터에서 유저끼리 사고판다 |
-| S2 | 스팀과 통신하는 곳 | 새 클러스터 서비스 **Commerce 서비스** 하나만 스팀 Web A​PI를 부른다. 스팀 퍼블리셔 키는 이 서비스만 가진다 |
+| S2 | 스팀과 통신하는 곳 | 새 클러스터 서비스 **Commerce 서비스** 하나만 스팀 Web API를 부른다. 스팀 퍼블리셔 키는 이 서비스만 가진다 |
 | S3 | 정답 데이터의 주인 | (A) 주문 상태와 지급 내역은 **우리 DB**가 정답이다. (B) 스팀 아이템은 **스팀 인벤토리가 정답**이고, 우리 DB에는 사본만 둔다 |
 | S4 | 스팀 아이템의 범위 (권장) | **외형(코스메틱)만.** 전투력에 영향을 주는 아이템과 재화는 스팀 아이템으로 만들지 않는다 (4.5) |
 | S5 | 지급 | 결제 확정 후 지급은 03 문서의 멱등 메시지(`GrantItem`)로 본 샤드 플레이어 액터에 보낸다 |
@@ -43,7 +45,7 @@
                                    └──── GrantItem / Revoke ─┘ (멱등 메시지, outbox)
 ```
 
-- **클라이언트는 스팀 Web A​PI를 직접 부르지 않는다.** 퍼블리셔 키가 필요한 호출(지급, 회수, 주문 확정)은 반드시 서버에서 해야 한다(인벤토리 Web A​PI 문서의 NOTE). 클라이언트가 쓰는 것은 Steamworks SDK의 오버레이(결제 승인 창)와 콜백뿐이다.
+- **클라이언트는 스팀 Web API를 직접 부르지 않는다.** 퍼블리셔 키가 필요한 호출(지급, 회수, 주문 확정)은 반드시 서버에서 해야 한다(인벤토리 Web API 문서의 NOTE). 클라이언트가 쓰는 것은 Steamworks SDK의 오버레이(결제 승인 창)와 콜백뿐이다.
 - **Commerce 서비스**는 03 문서 8장의 클러스터 서비스(거래 서비스 등)와 같은 종류다. async 서비스이고, 스팀 호출은 기다림이 대부분이라 액터 + `.await`로 처리한다(01 문서 5장과 같은 방식).
 - **Commerce DB**는 주문과 스팀 아이템 작업 기록을 둔다. 플레이어의 본 샤드와 무관한 전역 데이터라 샤드 Game DB에 두지 않는다. 별도 DB로 둘지 Account DB 안의 스키마로 둘지는 S9에서 정한다.
 

@@ -1,7 +1,7 @@
 # Research: Design Data, Live Operations, and Admin Tools
 
 - Status: **proposal** (2026-11-20). Nothing here is binding until it is moved into `docs/design/`.
-- Related: [admin-web-platform.ko.md](admin-web-platform.ko.md) (security research for the web tools, Korean), `docs/design/01-threading.md` §5.7 and §10.0, `docs/design/03-data-ownership.md` §3, `docs/design/08-operations-observability.md`
+- Related: [admin-web-platform.ko.md](admin-web-platform.md) (security research for the web tools, Korean), `docs/design/01-threading.md` §5.7 and §10.0, `docs/design/03-data-ownership.md` §3, `docs/design/08-operations-observability.md`
 
 This note turns what was learned from earlier live game services into concrete proposals for this project. It covers three things: how planner-authored tables reach the server, how operators change a running service, and what the web tools that drive those changes should look like.
 

@@ -80,7 +80,7 @@ The game operations tool is built as a minimal version (server status, notices, 
 
 Decided on 2026-11-20: both tools use `axum` with Askama templates compiled at build time, plus htmx for partial updates.
 
-The reason is in the security research ([docs/research/admin-web-platform.ko.md](../research/admin-web-platform.ko.md)). The 2025 to 2026 incident record shows repeated compromises through Node server frameworks and the npm supply chain: authorization bypasses in middleware, server-side code execution through deserialization, and malicious packages pushed through stolen publisher accounts. A server-rendered Rust tool with no Node server and no npm build removes those attack paths. What remains is Cargo and the OS, which this project already operates.
+The reason is in the security research ([docs/research/admin-web-platform.ko.md](../research/admin-web-platform.md)). The 2025 to 2026 incident record shows repeated compromises through Node server frameworks and the npm supply chain: authorization bypasses in middleware, server-side code execution through deserialization, and malicious packages pushed through stolen publisher accounts. A server-rendered Rust tool with no Node server and no npm build removes those attack paths. What remains is Cargo and the OS, which this project already operates.
 
 htmx is a single vendored JavaScript file with a pinned version and recorded hash, served by the tool itself. It is not an npm dependency and no CDN is used. Askama templates are checked at compile time, so a broken template fails the build.
 

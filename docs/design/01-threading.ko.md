@@ -1,5 +1,7 @@
 # 설계 01. 스레드 모델
 
+[English](01-threading.md) | **한국어**
+
 - 상태: **v2.5** (2026-11-19). v2.5: 플레이어 액터를 OS 스레드에 고정하지 않는 방식(tokio 멀티 스레드 런타임) 확정, 디버깅과 추적 규칙 추가(5.8). v2.4: AOI 칸 단위 NPC 활성화(4.6), 엔티티 단위 대기 상태(4.8), 운영 명령과 재로드의 C 금지(5.7), 시작 순서와 기동 복구(10.0) 추가. v2.3: 컨텐츠를 동기 스레드에서 **플레이어별 async 액터**(컨텐츠 전용 tokio 런타임)로 바꿈. v2.1: Directory와 서버 등록을 Redis 기반으로 바꿈(2026-11-18 확정). v2.2: Redis에는 단일 명령만 쓰고 판정은 InGameSpaceManager 액터가, 정합성은 DB fencing이 맡음. v1에서 바뀐 것: Gateway 도입에 따른 GatewayLink, 컨텐츠 스레드 추가, InGameSpace 구조(코어 + 모드), 연결 이벤트 정책, InGameSpaceManager 2층 구조
 - 선행 문서: `02-session-network.md` (세션, 네트워크), `03-data-ownership.md` (데이터 소유, 배치), `04-database.md` (DB 구성)
 - 관련: `docs/RUST_GUIDELINES.md` 6장 (소유권, 동시성, async)

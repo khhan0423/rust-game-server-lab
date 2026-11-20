@@ -1,5 +1,7 @@
 # 설계 05. 공간(InGameSpace) 수명 관리
 
+[English](05-space-lifecycle.md) | **한국어**
+
 - 상태: **초안** (2026-11-19)
 - 선행 문서: `01-threading.md` 6장 (Directory와 InGameSpaceManager 2층 구조, 선점, 수명 상태, fencing), `03-data-ownership.md` 5장 (배치 규칙), 9.6 (Redis 명령)
 - 이 문서가 다루는 것: InGameSpace를 **언제 띄우고, 언제 내리고, 몇 개까지 허용하는가.** "누가 맡는가"와 "두 서버가 같은 장소를 맡지 않게 하는 장치"는 01 문서 6장에 있으므로 여기서 반복하지 않는다

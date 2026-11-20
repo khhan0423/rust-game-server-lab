@@ -1,5 +1,7 @@
 # 설계 10. 개발 도구: 유닛 테스트, 테스트 클라이언트, 서버 런처
 
+[English](10-dev-tooling.md) | **한국어**
+
 - 상태: **초안** (2026-11-19). 소유자가 정한 다음 작업이다: "유닛 테스트 준비, 테스트 클라이언트 준비, 서버 런처 준비"
 - 관련 문서: `docs/plan/README.md`(실행 계획: 파일럿 단계, 개발 단계, 테스트 시나리오), `docs/RUST_GUIDELINES.md` 2장(워크스페이스), 11장(테스트), 13장(크레이트), `docs/protocol/session-contract.md`(테스트 클라이언트가 지킬 약속), `08-operations-observability.md`(헬스 체크, 로그)
 
@@ -9,7 +11,7 @@
 |---|---|---|
 | T1 | 순서 | ① 워크스페이스 뼈대와 유닛 테스트 → ② 서버 런처 → ③ 테스트 클라이언트. 테스트 클라이언트는 접속할 서버가 있어야 의미가 있으므로 마지막이다 |
 | T2 | 품질 게이트 | 모든 작업은 `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`를 통과해야 끝난다 (AGENTS.md) |
-| T3 | 개발용 DB와 Valkey | **Rancher Desktop**(컨테이너 엔진 dockerd/moby)으로 띄운다. Docker CLI와 `docker compose`를 그대로 쓴다. Docker Desktop에서 옮겨 온다 (소유자 결정, 2026-11-19) |
+| T3 | 개발용 DB와 Valkey | **Rancher Desktop**(컨테이너 엔진 dockerd/moby)으로 띄운다. Docker CLI와 `docker compose`를 그대로 쓴다. Docker Desktop에서 옮겨 온다 (소유자 결정, 2026-11-19). Linux 빌드와 테스트 확인도 같은 Rancher Desktop의 컨테이너(`linux-gate`)에서 한다. WSL 배포판을 따로 두지 않는다 (소유자 결정, 2026-11-20) |
 | T4 | 테스트 클라이언트 모양 | **창이 있는 Windows GUI 프로그램** (소유자 결정). 봇 여러 개를 돌리는 시나리오·부하 모드는 창 없이도 돌 수 있게 둔다(자동 테스트용) |
 | T5 | 서버 런처 형태 | **Rust로 만든 GUI 프로그램** (소유자 결정). `crates/launcher` 추가 |
 | T6 | GUI와 그래픽 | **테스트 클라이언트: Bevy(0.20) + bevy_egui.** Rust에서 가장 앞선 그래픽 엔진이다(wgpu 기반, 실시간 패스 트레이싱까지 지원). 필드, 플레이어, NPC, AOI 칸을 2D/3D로 그리고, 패널(로그인, 인벤토리, 패킷 로그)은 egui로 올린다. **서버 런처: eframe(egui, wgpu 렌더러).** 상태판, 로그 창, 그래프 같은 도구 화면에 가장 강하다. 두 프로그램이 같은 egui 위젯 코드를 공유한다. egui 기본 글꼴에는 한글이 없으므로 한글 글꼴을 넣는다 (소유자 결정: "가장 향상된 GUI나 그래픽으로", 2026-11-19) |
