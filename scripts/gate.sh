@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 preset_database_url="${DATABASE_URL:-}"
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 if [ -n "$preset_database_url" ]; then export DATABASE_URL="$preset_database_url"; fi
+export SQLX_OFFLINE=true
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace

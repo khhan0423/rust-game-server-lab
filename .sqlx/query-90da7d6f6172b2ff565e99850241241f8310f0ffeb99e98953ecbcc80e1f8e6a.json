@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO entry_tickets (ticket_hash, account_id, game_id, expires_at)\n         VALUES (sha256($1), $2, $3, clock_timestamp() + $4 * interval '1 second')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90da7d6f6172b2ff565e99850241241f8310f0ffeb99e98953ecbcc80e1f8e6a"
+}

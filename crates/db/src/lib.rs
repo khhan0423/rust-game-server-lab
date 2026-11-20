@@ -5,6 +5,8 @@ use std::time::Duration;
 use sqlx::migrate::{Migrate, MigrateError, Migrator};
 use sqlx::postgres::PgPoolOptions;
 
+pub mod login;
+
 /// PostgreSQL connection pool.
 pub type Pool = sqlx::PgPool;
 
@@ -20,6 +22,9 @@ pub enum DbError {
     /// Connection or query execution failed.
     #[error("database error")]
     Sqlx(#[from] sqlx::Error),
+    /// The database returned rows that break a rule the schema and queries are meant to keep.
+    #[error("database state is inconsistent: {0}")]
+    Inconsistent(&'static str),
     /// Applying or querying migrations failed.
     #[error("migration error")]
     Migrate(#[from] MigrateError),

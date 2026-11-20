@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO account_identities (provider, subject, account_id, secret_hash, linked_at)\n         VALUES ($1, $2, $3, sha256($4), now())",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Text",
+        "Text",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "106a76ec89d65a2278097bb29983ce9f145d15db0127ba6cb71654c9bed84442"
+}

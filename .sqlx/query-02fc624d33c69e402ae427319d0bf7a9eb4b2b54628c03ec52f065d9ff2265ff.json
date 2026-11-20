@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.status AS \"account: AccountStatus\", m.status AS \"membership: MembershipStatus\"\n         FROM accounts a JOIN game_memberships m USING (account_id)\n         WHERE a.account_id = $1 AND m.game_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account: AccountStatus",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "accounts",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "membership: MembershipStatus",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "game_memberships",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "02fc624d33c69e402ae427319d0bf7a9eb4b2b54628c03ec52f065d9ff2265ff"
+}

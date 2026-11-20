@@ -7,6 +7,7 @@ if (Test-Path .env) {
         Set-Item -Path "Env:$($name.Trim())" -Value $value.Trim()
     }
 }
+$env:SQLX_OFFLINE = "true"
 cargo fmt --all -- --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo clippy --workspace --all-targets -- -D warnings

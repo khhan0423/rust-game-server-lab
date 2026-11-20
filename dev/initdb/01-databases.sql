@@ -1,4 +1,5 @@
 -- Development databases. Runs only once, when the volume is first created.
+CREATE DATABASE login;
 CREATE DATABASE account;
 CREATE DATABASE common;
 CREATE DATABASE game_1;

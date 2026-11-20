@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO game_memberships (account_id, game_id, status, joined_at)\n         VALUES ($1, $2, $3, now())\n         ON CONFLICT (account_id, game_id) DO UPDATE SET status = EXCLUDED.status\n         WHERE game_memberships.status = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int2",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "05f5f4d14d71e6131bf0e1dcc9a892a60148b21961a7d48a5046535226a487d2"
+}

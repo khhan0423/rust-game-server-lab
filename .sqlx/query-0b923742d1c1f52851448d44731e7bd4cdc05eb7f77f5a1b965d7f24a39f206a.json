@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_memberships SET status = $1 WHERE account_id = $2 AND game_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0b923742d1c1f52851448d44731e7bd4cdc05eb7f77f5a1b965d7f24a39f206a"
+}

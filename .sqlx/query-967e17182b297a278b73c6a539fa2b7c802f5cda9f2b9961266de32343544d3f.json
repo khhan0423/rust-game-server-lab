@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: MembershipStatus\" FROM game_memberships WHERE account_id = $1 AND game_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: MembershipStatus",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "game_memberships",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "967e17182b297a278b73c6a539fa2b7c802f5cda9f2b9961266de32343544d3f"
+}
