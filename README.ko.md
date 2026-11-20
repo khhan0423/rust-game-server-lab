@@ -73,7 +73,7 @@ docs/
 
 ## 돌려 보기
 
-Rust stable(`rust-toolchain.toml`)과, PostgreSQL 17과 Valkey 8을 띄울 Docker 호환 런타임이 필요합니다. 저는 Rancher Desktop을 씁니다.
+Rust(버전은 `rust-toolchain.toml`에 고정돼 있고 rustup이 알아서 설치합니다)와, PostgreSQL 17과 Valkey 8을 띄울 Docker 호환 런타임이 필요합니다. 저는 Rancher Desktop을 씁니다.
 
 ```sh
 cp .env.example .env          # 비밀번호를 바꾼다. .env는 저장소에 올리지 않는다

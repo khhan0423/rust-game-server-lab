@@ -32,7 +32,7 @@ cargo test --workspace
 
 ## 1. 툴체인과 환경
 
-- 컴파일러 버전은 `rust-toolchain.toml`이 고정한다. 개인 PC마다 버전이 달라서 생기는 차이를 없애기 위해서다. 처음에는 `channel = "stable"`로 두고, 첫 빌드가 통과하면 그때의 버전 번호(예: `"1.xx.0"`)로 바꿔 고정한다.
+- 컴파일러 버전은 `rust-toolchain.toml`에 정확한 번호로 고정한다(지금은 `1.100.0`). 모든 PC와 Linux 컨테이너가 같은 컴파일러로 빌드하게 하기 위해서다. 새 버전으로 올릴 때는 이 번호와 `dev/compose.yaml`의 `linux-gate` 이미지 태그를 한 커밋에서 함께 바꾸고, 새로 생긴 lint도 그 커밋에서 고친다.
 - `clippy.toml`은 lint 동작만 조정한다(테스트에서 `unwrap` 등 허용). lint를 켜고 끄는 것은 `Cargo.toml`의 `[workspace.lints]`에서 한다.
 - Edition은 `2024`로 한다.
 - **IDE를 쓰지 않는다.** 이 프로젝트는 CLI만으로 개발한다(실험 목적). 기본 흐름:

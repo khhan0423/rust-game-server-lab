@@ -73,7 +73,7 @@ Crates are added in the stage that first needs them. Still to come: `protocol`, 
 
 ## Running it
 
-You need Rust stable (`rust-toolchain.toml`) and a Docker-compatible runtime for PostgreSQL 17 and Valkey 8. I use Rancher Desktop.
+You need Rust (the version is pinned in `rust-toolchain.toml`, and rustup installs it for you) and a Docker-compatible runtime for PostgreSQL 17 and Valkey 8. I use Rancher Desktop.
 
 ```sh
 cp .env.example .env          # change the password; .env is never committed

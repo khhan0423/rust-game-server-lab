@@ -32,7 +32,7 @@ cargo test --workspace
 
 ## 1. Toolchain and environment
 
-- The compiler version is pinned by `rust-toolchain.toml`. This removes differences from each PC having a different version. Start with `channel = "stable"`, and once the first build passes, pin it to that version number (for example `"1.xx.0"`).
+- The compiler version is pinned to an exact number in `rust-toolchain.toml` (currently `1.100.0`), so every PC and the Linux container build with the same compiler. To move to a newer version, change that number and the image tag of the `linux-gate` service in `dev/compose.yaml` in one commit, and fix any new lints in the same commit.
 - `clippy.toml` only adjusts lint behavior (allowing `unwrap` etc. in tests). Turning lints on and off is done in `[workspace.lints]` in `Cargo.toml`.
 - Edition is `2024`.
 - **Do not use an IDE.** This project is developed with the CLI only (as an experiment). Basic flow:
