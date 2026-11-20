@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package pilot;
+
+message Timers {
+  uint32 heartbeat_interval = 1;
+  uint32 heartbeat_timeout = 2;
+  uint32 foreground_probe = 3;
+  uint32 resume_grace = 4;
+  uint32 suspend_grace = 5;
+  uint32 ack_interval = 6;
+  uint32 handshake_timeout = 7;
+}
+
+message Position {
+  sint32 x = 1;
+  sint32 y = 2;
+}
+
+message SpaceEntity {
+  EntityNumber number = 1;
+  string player_tag = 2;
+  string nickname = 3;
+  Position position = 4;
+}
+
+message ItemStack {
+  ItemInstanceId item_id = 1;
+  uint32 item_code = 2;
+  uint32 count = 3;
+}
+
+message MailEntry {
+  MailId mail_id = 1;
+  string sender_tag = 2;
+  string sender_nickname = 3;
+  uint32 item_code = 4;
+  uint32 count = 5;
+}
+
+message ServerAddress {
+  uint32 shard = 1;
+  ServerRole role = 2;
+  uint32 instance = 3;
+}
+
+message Sequence {
+  uint32 value = 1;
+}
+
+message EntityNumber {
+  uint32 value = 1;
+}
+
+message Money {
+  int64 value = 1;
+}
+
+message RequestId {
+  bytes value = 1;
+}
+
+message ItemInstanceId {
+  bytes value = 1;
+}
+
+message MailId {
+  bytes value = 1;
+}
+
+message PlayerId {
+  bytes value = 1;
+}
+
+message SessionNumber {
+  uint64 value = 1;
+}
+
+enum CloseReason {
+  CLOSE_REASON_UNSPECIFIED = 0;
+  CLOSE_REASON_LOGOUT = 1;
+  CLOSE_REASON_DUPLICATE_LOGIN = 2;
+  CLOSE_REASON_MAINTENANCE = 3;
+  CLOSE_REASON_UPDATE_REQUIRED = 4;
+  CLOSE_REASON_BANNED = 5;
+  CLOSE_REASON_SERVER_SHUTDOWN = 6;
+  CLOSE_REASON_IDLE_TIMEOUT = 7;
+  CLOSE_REASON_AUTHENTICATION_FAILED = 8;
+}
+
+enum ResumeMode {
+  RESUME_MODE_UNSPECIFIED = 0;
+  RESUME_MODE_REPLAY = 1;
+  RESUME_MODE_RESYNC = 2;
+}
+
+enum ResumeFailReason {
+  RESUME_FAIL_REASON_UNSPECIFIED = 0;
+  RESUME_FAIL_REASON_EXPIRED = 1;
+  RESUME_FAIL_REASON_UNKNOWN = 2;
+  RESUME_FAIL_REASON_CLOSED = 3;
+  RESUME_FAIL_REASON_VERSION_MISMATCH = 4;
+}
+
+enum ActionStatus {
+  ACTION_STATUS_UNSPECIFIED = 0;
+  ACTION_STATUS_OK = 1;
+  ACTION_STATUS_REJECTED = 2;
+}
+
+enum ServerRole {
+  SERVER_ROLE_UNSPECIFIED = 0;
+  SERVER_ROLE_GATEWAY = 1;
+  SERVER_ROLE_GAME = 2;
+}
+
+enum DetachReason {
+  DETACH_REASON_UNSPECIFIED = 0;
+  DETACH_REASON_PEER_CLOSED = 1;
+  DETACH_REASON_PEER_RESET = 2;
+  DETACH_REASON_WRITE_FAILED = 3;
+  DETACH_REASON_KEEPALIVE_TIMEOUT = 4;
+  DETACH_REASON_HEARTBEAT_TIMEOUT = 5;
+  DETACH_REASON_HANDSHAKE_TIMEOUT = 6;
+  DETACH_REASON_SEND_QUEUE_OVERFLOW = 7;
+  DETACH_REASON_PROTOCOL_VIOLATION = 8;
+  DETACH_REASON_LOCAL_NETWORK = 9;
+}

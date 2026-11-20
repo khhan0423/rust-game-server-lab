@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package pilot;
+
+import "common.proto";
+
+message Auth {
+  bytes login_token = 1;
+  uint32 protocol_version = 2;
+  string client_version = 3;
+  string platform = 4;
+}
+
+message AuthOk {
+  bytes session_key = 1;
+  string player_tag = 2;
+  string nickname = 3;
+  uint64 server_time = 4;
+  Timers timers = 5;
+}
+
+message Close {
+  CloseReason reason = 1;
+  bool reconnect_allowed = 2;
+  optional string message = 3;
+}
+
+message Resume {
+  bytes session_key = 1;
+  Sequence last_server_seq = 2;
+  uint32 protocol_version = 3;
+  string client_version = 4;
+}
+
+message ResumeOk {
+  ResumeMode mode = 1;
+  Sequence last_client_seq = 2;
+  uint64 server_time = 3;
+  Timers timers = 4;
+}
+
+message ResumeFail {
+  ResumeFailReason reason = 1;
+}
+
+message Ping {
+  uint64 client_time = 1;
+}
+
+message Pong {
+  uint64 client_time = 1;
+  uint64 server_time = 2;
+}
+
+message Ack {
+  Sequence ack = 1;
+}
+
+message Suspend {}
+
+message Logout {}
+
+message EnterGame {}
+
+message EnterGameResult {
+  ActionStatus status = 1;
+}

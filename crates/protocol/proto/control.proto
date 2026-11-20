@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package pilot;
+
+import "common.proto";
+
+message ServerHello {
+  ServerAddress server = 1;
+  uint32 protocol_version = 2;
+}
+
+message SessionAttached {
+  PlayerId player_id = 1;
+}
+
+message SessionBound {
+  PlayerId player_id = 1;
+  ServerAddress content = 2;
+  ServerAddress zone = 3;
+}
+
+message SessionDetached {
+  DetachReason reason = 1;
+}
+
+message SessionSuspended {}
+
+message SessionResumed {
+  ResumeMode mode = 1;
+  ServerAddress gateway = 2;
+}
+
+message SessionReplaced {
+  ServerAddress gateway = 1;
+  SessionNumber new_session = 2;
+}
+
+message SessionClosed {}
+
+message RouteUpdate {
+  uint32 zone_index = 1;
+}
+
+message SwitchZone {
+  ServerAddress zone = 1;
+}
+
+message Kick {
+  CloseReason reason = 1;
+}
+
+message CleanupComplete {}
+
+message Superseded {}

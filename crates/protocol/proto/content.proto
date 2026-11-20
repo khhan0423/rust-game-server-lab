@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package pilot;
+
+import "common.proto";
+
+message BuyItem {
+  RequestId request_id = 1;
+  uint32 item_code = 2;
+  uint32 count = 3;
+}
+
+message BuyItemResult {
+  RequestId request_id = 1;
+  ActionStatus status = 2;
+}
+
+message InventoryChanged {
+  repeated ItemStack upserted = 1;
+  repeated ItemInstanceId removed = 2;
+  Money balance = 3;
+}
+
+message InventoryList {
+  ItemInstanceId after = 1;
+}
+
+message InventoryPage {
+  repeated ItemStack items = 1;
+  Money balance = 2;
+  ItemInstanceId next = 3;
+}
+
+message SendMail {
+  RequestId request_id = 1;
+  string recipient_tag = 2;
+  ItemInstanceId item_id = 3;
+  uint32 count = 4;
+}
+
+message SendMailResult {
+  RequestId request_id = 1;
+  ActionStatus status = 2;
+}
+
+message ListMail {
+  MailId after = 1;
+}
+
+message MailPage {
+  repeated MailEntry entries = 1;
+  MailId next = 2;
+}
+
+message ReceiveMail {
+  RequestId request_id = 1;
+  MailId mail_id = 2;
+}
+
+message ReceiveMailResult {
+  RequestId request_id = 1;
+  ActionStatus status = 2;
+}
+
+message MailArrived {
+  MailEntry entry = 1;
+}

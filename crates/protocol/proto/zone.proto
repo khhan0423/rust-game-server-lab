@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package pilot;
+
+import "common.proto";
+
+message EnterSpace {}
+
+message EnterSpaceResult {
+  ActionStatus status = 1;
+}
+
+message LeaveSpace {}
+
+message LeaveSpaceResult {
+  ActionStatus status = 1;
+}
+
+message Move {
+  Position position = 1;
+}
+
+message SpaceSnapshot {
+  EntityNumber self_entity = 1;
+  repeated SpaceEntity entities = 2;
+}
+
+message EntityAppeared {
+  SpaceEntity entity = 1;
+}
+
+message EntityDisappeared {
+  EntityNumber entity = 1;
+}
+
+message EntityMoved {
+  EntityNumber entity = 1;
+  Position position = 2;
+}
