@@ -1,0 +1,19 @@
+# Dev ports are above 15000 on purpose: Windows hands out reserved ranges inside its
+# dynamic port range (1024-15000 on the dev PC), and a reserved port cannot be bound.
+[process]
+admin_addr = "127.0.0.1:18190"
+log_dir = "logs/publisher"
+log_level = "info"
+
+[db]
+max_connections = 4
+acquire_timeout_ms = 3000
+
+[http]
+listen_addr = "127.0.0.1:18100"
+
+[tickets]
+ttl_secs = 60
+
+[games.lab]
+entry_url = "http://127.0.0.1:18200"
