@@ -46,21 +46,16 @@ impl ProfileName {
     }
 }
 
-/// The publisher's account identifier.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(transparent)]
-pub(super) struct AccountId(Uuid);
-
-impl fmt::Display for AccountId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
 /// The publisher's guest login identifier.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub(super) struct GuestId(Uuid);
+
+impl fmt::Display for GuestId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.pad(self.0.hyphenated().encode_lower(&mut Uuid::encode_buffer()))
+    }
+}
 
 /// An on-wire guest secret that is always redacted in debug output.
 #[derive(Clone, Deserialize, PartialEq, Eq, Serialize)]
@@ -79,7 +74,6 @@ pub(super) struct Guest {
     #[serde(rename = "guest_id")]
     pub(super) id: GuestId,
     pub(super) secret: Secret,
-    pub(super) account_id: AccountId,
 }
 
 /// A guest identity and the publisher that issued it.
@@ -133,7 +127,6 @@ pub(super) mod tests {
             publisher_url: "http://127.0.0.1:7101".into(),
             guest: Guest {
                 id: GuestId(Uuid::from_u128(0x018f_92fc_0000_7000_8000_0000_0000_0002)),
-                account_id: AccountId(Uuid::from_u128(0x018f_92fc_0000_7000_8000_0000_0000_0001)),
                 secret: Secret("ab".repeat(32)),
             },
         }

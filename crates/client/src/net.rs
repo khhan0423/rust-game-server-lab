@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::login::{Outcome, Ticket};
-use crate::profile::{self, AccountId, Credentials, Guest, GuestId, Secret};
+use crate::profile::{self, Credentials, Guest, GuestId, Secret};
 
 const ACCOUNTS: &str = "/v1/guest/accounts";
 const LOGIN: &str = "/v1/guest/login";
@@ -92,8 +92,6 @@ enum RequestError {
     InvalidResponse(StatusCode),
     #[error("Publisher returned {0} (HTTP {1})")]
     Server(ServerCode, StatusCode),
-    #[error("The publisher returned a ticket for a different account")]
-    AccountMismatch,
     #[error("The client window closed")]
     WindowClosed,
 }
@@ -141,7 +139,6 @@ struct LoginBody<'a> {
 
 #[derive(Deserialize)]
 struct LoginReply {
-    account_id: AccountId,
     ticket: String,
     expires_in_secs: u64,
     entry_url: String,
@@ -210,9 +207,6 @@ impl Worker {
         let reply: LoginReply = self
             .post(&credentials.publisher_url, Route::LogIn, &body)
             .await?;
-        if reply.account_id != credentials.guest.account_id {
-            return Err(RequestError::AccountMismatch);
-        }
         if reply.ticket.len() != 64 || !reply.ticket.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(RequestError::InvalidResponse(StatusCode::OK));
         }

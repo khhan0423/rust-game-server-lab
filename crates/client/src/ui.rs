@@ -139,9 +139,9 @@ impl LoginPanel {
         };
         ui.label(state);
         if let Some(credentials) = self.login.credentials() {
-            ui.label(format!("Account ID: {}", credentials.guest.account_id));
+            ui.label(format!("Guest ID: {:.8}", credentials.guest.id));
         } else {
-            ui.label("Account ID: -");
+            ui.label("Guest ID: -");
         }
         if let State::TicketHeld(ticket) = self.login.state() {
             let remaining = ticket.remaining(Instant::now());
