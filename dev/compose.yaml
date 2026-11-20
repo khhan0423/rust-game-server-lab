@@ -32,7 +32,9 @@ services:
   # docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate
   linux-gate:
     profiles: ["tools"]
-    image: rust:1.100-bookworm
+    build:
+      context: .
+      dockerfile: linux-gate.Dockerfile
     working_dir: /workspace
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/postgres
@@ -45,7 +47,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["bash", "scripts/gate.sh"]
+    command: ["bash", "-c", "protoc --version && exec bash scripts/gate.sh"]
 
 volumes:
   postgres_data:
