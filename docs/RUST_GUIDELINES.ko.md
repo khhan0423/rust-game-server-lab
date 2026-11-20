@@ -1,5 +1,7 @@
 # Rust 코딩 및 설계 가이드
 
+[English](RUST_GUIDELINES.md) | **한국어**
+
 이 프로젝트의 코드와 설계는 이 문서를 기준으로 맞춘다. 사람이든 AI 에이전트든 같은 규칙을 따른다.
 
 일관성은 세 겹으로 지킨다. 위에 있는 것이 우선한다.
@@ -39,7 +41,7 @@ cargo test --workspace
   - `bacon clippy`: 터미널에 띄워 두면 저장할 때마다 자동 검사 (IDE의 빨간 밑줄 역할)
   - `cargo doc --open`: 프로젝트와 의존성 문서 열람
   - `rustc --explain E0xxx`: 컴파일 에러 코드의 상세 설명
-- 개발 중 실행과 테스트는 WSL2(Linux)에서 하고, 운영 대상인 Linux 동작을 그대로 확인한다.
+- 개발 환경은 Rancher Desktop 안에서 돌린다. 개발용 DB와 Valkey는 컨테이너로 띄우고, 운영 대상인 Linux에서의 빌드와 테스트도 같은 곳의 컨테이너에서 확인한다(`docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate`). WSL 배포판을 따로 설치하지 않는다.
 - Windows에서는 MSVC 툴체인(`x86_64-pc-windows-msvc`)을 쓴다.
 
 ---
@@ -376,7 +378,7 @@ tracing::info!(player = ?player_id, zone = ?zone_id, "player entered zone");
 | DB | **PostgreSQL** + `sqlx` (`postgres` 기능) |
 | Redis 호환 저장소 | `redis` (2026-11-19 결정. 단일 명령만 쓰는 용도에 충분) |
 | 금액 (필요할 때) | `rust_decimal` |
-| HTTP 클라이언트 (스팀 Web A​PI 등 외부 호출) | `reqwest` (`rustls` 기능) — 2026-11-19 승인 |
+| HTTP 클라이언트 (스팀 Web API 등 외부 호출) | `reqwest` (`rustls` 기능) — 2026-11-19 승인 |
 | HTML 템플릿 (관리 웹 도구) | `askama` (설계 12의 게임 운영 도구, 퍼블리셔 백오피스) — 2026-11-20 승인. htmx는 npm 의존성이 아니라 버전과 해시를 기록한 파일 하나를 도구가 직접 제공한다 |
 | 개발용 런타임 관찰 | `console-subscriber` (tokio-console). **개발 빌드의 기능 플래그로만 켜고 release에는 넣지 않는다** — 2026-11-19 승인 |
 | 지연 시간 분포 측정 (부하 테스트) | `hdrhistogram` (`bot` 크레이트 등 측정 도구에서만) — 2026-11-19 승인 |

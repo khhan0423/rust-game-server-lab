@@ -9,13 +9,13 @@ I spent years writing game servers in C++. This project is my way of finding out
 - Can a single process hold 10,000 concurrent players at a 10 Hz tick?
 - How much of the discipline people used to enforce by hand can the compiler and lints take over?
 
-This is not a finished game or a framework. Design documents, plans, and code are published as the work proceeds. Most design documents are currently written in Korean.
+This is not a finished game or a framework. Design documents, plans, and code are published as the work proceeds. Documents are written in English, and each has a Korean version next to it as `name.ko.md`.
 
 ## Where it stands
 
 The project is at the pilot stage: verifying the skeleton of the design before building content on top of it. The full plan is in [docs/plan/README.md](docs/plan/README.md).
 
-What exists today is a Cargo workspace with four crates (`infra`, `db`, `server`, `gateway`), a startup sequence that refuses to come up when the database is missing, the schema is out of date, or a secret is missing, a dev environment for the databases, a quality gate script, and 14 tests. So far everything has been built and tested on Windows (MSVC) only; Linux is not verified.
+What exists today is a Cargo workspace with four crates (`infra`, `db`, `server`, `gateway`), a startup sequence that refuses to come up when the database is missing, the schema is out of date, or a secret is missing, a dev environment for the databases, a quality gate script, and 14 tests. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
 
 Next up is the protocol and frame codec, followed by the launcher, then login and sessions. The publisher login server, entry server, GUI test client, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
 
@@ -73,7 +73,7 @@ Crates are added in the stage that first needs them. Still to come: `protocol`, 
 
 ## Running it
 
-You need Rust stable (`rust-toolchain.toml`) and a Docker-compatible runtime (PostgreSQL 17, Valkey 8).
+You need Rust stable (`rust-toolchain.toml`) and a Docker-compatible runtime for PostgreSQL 17 and Valkey 8. I use Rancher Desktop.
 
 ```sh
 cp .env.example .env          # change the password; .env is never committed
@@ -90,6 +90,12 @@ scripts/gate.sh        # Windows PowerShell: scripts/gate.ps1
 ```
 
 Tests run against a real PostgreSQL. They start the actual server processes, and they also check that a server refuses to start when startup cannot complete: no database, schema mismatch, or a missing secret.
+
+The servers are meant to run on Linux, so the same gate also runs in a Linux container on the same runtime:
+
+```sh
+docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate
+```
 
 ## Branches
 

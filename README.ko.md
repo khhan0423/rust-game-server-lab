@@ -9,13 +9,13 @@
 - 한 프로세스에서 동접 1만, 틱 10Hz를 지킬 수 있는가
 - 사람이 손으로 지키던 규칙을 컴파일러와 lint가 얼마나 대신해 주는가
 
-완성된 게임도, 프레임워크도 아닙니다. 설계 문서, 계획, 코드를 진행되는 대로 공개합니다. 설계 문서 대부분은 지금 한국어로 쓰여 있습니다.
+완성된 게임도, 프레임워크도 아닙니다. 설계 문서, 계획, 코드를 진행되는 대로 공개합니다. 문서는 영어로 쓰고, 한국어판을 `이름.ko.md`로 옆에 둡니다.
 
 ## 어디까지 왔나
 
-설계의 뼈대가 실제 코드에서 맞물리는지 확인하는 파일럿 단계입니다. 전체 계획은 [docs/plan/README.md](docs/plan/README.md)에 있습니다.
+설계의 뼈대가 실제 코드에서 맞물리는지 확인하는 파일럿 단계입니다. 전체 계획은 [docs/plan/README.md](docs/plan/README.ko.md)에 있습니다.
 
-지금 있는 것은 크레이트 네 개(`infra`, `db`, `server`, `gateway`)로 구성된 Cargo 워크스페이스, 데이터베이스가 없거나 스키마가 오래됐거나 비밀값이 없으면 아예 뜨지 않는 기동 절차, 개발용 데이터베이스 환경, 품질 게이트 스크립트, 테스트 14개입니다. 지금까지는 Windows(MSVC)에서만 빌드하고 테스트했고, Linux는 아직 확인하지 않았습니다.
+지금 있는 것은 크레이트 네 개(`infra`, `db`, `server`, `gateway`)로 구성된 Cargo 워크스페이스, 데이터베이스가 없거나 스키마가 오래됐거나 비밀값이 없으면 아예 뜨지 않는 기동 절차, 개발용 데이터베이스 환경, 품질 게이트 스크립트, 테스트 14개입니다. Windows(MSVC)와 Linux에서 빌드되고 테스트를 통과합니다. Linux 쪽은 컨테이너에서 돌립니다.
 
 다음은 프로토콜과 프레임 코덱입니다. 그 뒤로 런처, 접속과 세션이 이어집니다. 퍼블리셔 로그인 서버, Entry 서버, GUI 테스트 클라이언트, 봇, 전투 서버, 존, 컨텐츠는 그다음에 계획 문서가 정한 순서대로 만듭니다.
 
@@ -43,11 +43,11 @@
 
 이 그림 뒤에 있는 결정 몇 가지:
 
-- 클라이언트는 Gateway에만 붙습니다. 서버 이동은 Gateway가 목적지를 바꿔 주는 것으로 끝나고, 연결이 끊겨도 유예 시간 안에 다시 이어 붙습니다([설계 02](docs/design/02-session-network.md), [세션 계약](docs/protocol/session-contract.md)).
-- 전투는 존 스레드에서, 플레이어 컨텐츠는 플레이어 액터에서 돌아갑니다. 장소는 고정 틱의 동기 스레드 하나가 맡고, 인벤토리와 재화는 유저마다 async 액터 하나가 소유합니다. 그래서 게임 로직에 락이 없습니다([설계 01](docs/design/01-threading.md)).
-- 샤드는 게임 DB와 그 샤드의 게임서버입니다. 유저는 처음 입장할 때 샤드를 배정받고 이후 바뀌지 않으며, 게임서버는 자기 샤드 DB에만 연결합니다([설계 04](docs/design/04-database.md), [설계 07](docs/design/07-login-account.md)).
-- 샤드를 넘는 일은 메시지로만 일어나고, 상대 DB에 직접 쓰지 않습니다. 메시지는 보내기 전에 기록하고(outbox) 멱등 키로 한 번만 반영합니다([설계 03](docs/design/03-data-ownership.md)).
-- 재화는 DB 커밋이 끝난 뒤에만 바뀝니다. SQL은 전부 Rust 함수 안에 있고 빌드할 때 검사하며, 저장 프로시저는 쓰지 않습니다([가이드](docs/RUST_GUIDELINES.md)).
+- 클라이언트는 Gateway에만 붙습니다. 서버 이동은 Gateway가 목적지를 바꿔 주는 것으로 끝나고, 연결이 끊겨도 유예 시간 안에 다시 이어 붙습니다([설계 02](docs/design/02-session-network.ko.md), [세션 계약](docs/protocol/session-contract.ko.md)).
+- 전투는 존 스레드에서, 플레이어 컨텐츠는 플레이어 액터에서 돌아갑니다. 장소는 고정 틱의 동기 스레드 하나가 맡고, 인벤토리와 재화는 유저마다 async 액터 하나가 소유합니다. 그래서 게임 로직에 락이 없습니다([설계 01](docs/design/01-threading.ko.md)).
+- 샤드는 게임 DB와 그 샤드의 게임서버입니다. 유저는 처음 입장할 때 샤드를 배정받고 이후 바뀌지 않으며, 게임서버는 자기 샤드 DB에만 연결합니다([설계 04](docs/design/04-database.ko.md), [설계 07](docs/design/07-login-account.ko.md)).
+- 샤드를 넘는 일은 메시지로만 일어나고, 상대 DB에 직접 쓰지 않습니다. 메시지는 보내기 전에 기록하고(outbox) 멱등 키로 한 번만 반영합니다([설계 03](docs/design/03-data-ownership.ko.md)).
+- 재화는 DB 커밋이 끝난 뒤에만 바뀝니다. SQL은 전부 Rust 함수 안에 있고 빌드할 때 검사하며, 저장 프로시저는 쓰지 않습니다([가이드](docs/RUST_GUIDELINES.ko.md)).
 - 모든 큐에 상한이 있습니다. 큐가 가득 차면 기다리지 않고 정해진 정책대로 처리합니다.
 - 기동이 끝나기 전에는 손님을 받지 않습니다. 기동 단계가 하나라도 실패하면 서버는 뜨지 않습니다.
 
@@ -73,7 +73,7 @@ docs/
 
 ## 돌려 보기
 
-Rust stable(`rust-toolchain.toml`)과 Docker 호환 런타임(PostgreSQL 17, Valkey 8)이 필요합니다.
+Rust stable(`rust-toolchain.toml`)과, PostgreSQL 17과 Valkey 8을 띄울 Docker 호환 런타임이 필요합니다. 저는 Rancher Desktop을 씁니다.
 
 ```sh
 cp .env.example .env          # 비밀번호를 바꾼다. .env는 저장소에 올리지 않는다
@@ -90,6 +90,12 @@ scripts/gate.sh        # Windows PowerShell: scripts/gate.ps1
 ```
 
 테스트는 실제 PostgreSQL에서 돕니다. 서버 프로세스를 직접 띄우고, 준비에 실패하는 경우(DB 없음, 스키마 불일치, 비밀값 없음)에는 뜨지 않는지도 확인합니다.
+
+서버는 Linux에서 돌릴 것이라, 같은 게이트를 같은 런타임의 Linux 컨테이너에서도 돌립니다.
+
+```sh
+docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate
+```
 
 ## 브랜치
 

@@ -15,6 +15,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+The dev environment runs inside Rancher Desktop: PostgreSQL and Valkey as containers (`dev/compose.yaml`), and the Linux check as `docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate`. Do not install a separate WSL distribution. Run the Linux gate before promoting work to `main`.
+
 ## Hard rules
 
 - Crate dependency direction: `server -> game -> protocol`, `server -> db`, `server -> net -> protocol`, `gateway -> net`, `bot -> net`, `client -> net`. Binary crates (`server`, `gateway`, `bot`, `client`, `launcher`) may depend on `infra` (config, logging, metrics, admin port); `infra` depends on no workspace crate. `gateway` never depends on `game`. `launcher` never depends on `game`, `db`, or `net`. `publisher` (publisher login server) depends only on `db` (its Login DB module) and `infra`; game-side crates never touch the Login DB. `protocol` and `game` do no I/O. SQL and Redis-compatible store access live only in `db`. Never store currency, items, trade state, outbox or idempotency keys in Redis. Redis is a shared bulletin board: single commands only (no Lua, no `MULTI`/`EXEC`, no `WATCH`); read-decide-write logic belongs to the owning actor; races between two commands are fenced in the DB (see `docs/design/03-data-ownership.md` section 9).
