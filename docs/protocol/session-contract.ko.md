@@ -18,7 +18,8 @@
 |---|---|---|---|---|
 | **ConnId** | Gateway | **아니오** (서버 내부) | TCP 연결 하나 | 늦게 도착한 옛 연결의 이벤트를 걸러냄 |
 | **session_key** | Gateway | **예** | `AuthOk`로 발급 ~ 세션 종료 | 재접속할 때 "같은 세션"임을 증명 |
-| **PlayerId** | 서버 (DB) | 예 | 캐릭터의 수명 | 캐릭터 식별 |
+| **PlayerId** | 서버 (DB) | **아니오** | 캐릭터의 수명 | 서버 안에서 캐릭터를 식별한다. 클라이언트에 보내지 않는다(설계 07 5.1절) |
+| **유저 태그**, **닉네임** | Entry 서버 (AccountDB) | 예 | 재발급하거나 이름을 바꿀 때까지 | 캐릭터의 공개용 이름. 클라이언트가 유저를 가리킬 때 쓴다 |
 | **seq / ack** | 양쪽 | 예 | 세션 하나 (세션이 바뀌면 1부터) | Reliable 메시지의 유실 복구 (02 문서 7장) |
 
 ### 1.1 session_key 규칙
@@ -42,7 +43,7 @@
 | 방향 | 메시지 | 필드 |
 |---|---|---|
 | C → S | `Auth` | `login_token`(게임 Entry 서버가 발급, 07 문서 3.2), `protocol_version`, `client_version`, `platform` |
-| S → C | `AuthOk` | `session_key`, `player_id`, `server_time`, `timers` (6장) |
+| S → C | `AuthOk` | `session_key`, `player_tag`, `nickname`, `server_time`, `timers` (6장) |
 | S → C | `Close` | `reason`, `reconnect_allowed` (7장). 인증 실패, 버전 불일치 등 |
 
 ### 2.2 재접속 (리로그인)

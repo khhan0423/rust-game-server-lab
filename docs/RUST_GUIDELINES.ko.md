@@ -83,7 +83,8 @@ publisher ──> db        (Login DB 모듈만. game, net에 의존하지 않�
 바이너리 크레이트(server, gateway, bot, client, launcher) ──> infra   (infra는 아무것에도 의존하지 않음)
 ```
 
-- `protocol`은 어떤 크레이트에도 의존하지 않고, `game`은 `protocol`에만 의존한다. 둘 다 I/O가 없는 순수 로직이라 네트워크나 DB 없이도 테스트할 수 있다.
+- `protocol`은 다른 워크스페이스 크레이트에 의존하지 않는다. 파일럿 스키마와 패킷 분기를 담당하며 [메시지 목록](protocol/message-catalog.ko.md)에서 메시지 ID 레지스트리를 생성한다. 실행 중에는 `game`과 마찬가지로 I/O를 하지 않는다. `game`은 `protocol`에만 의존할 수 있다.
+- `net`은 `protocol`에 의존하며 클라이언트 프레임과 백엔드 봉투 코덱을 담당한다. 이 단계에서 두 라이브러리를 추가하되 바이너리에는 연결하지 않는다.
 - `gateway`는 `game`을 모른다. Gateway는 게임 패킷의 페이로드를 해석하지 않기 때문이다(설계 02 3.2).
 - `game`은 `db`를 모른다. 영속화가 필요하면 `server`가 `game`의 결과를 받아 `db`에 넘긴다.
 - 의존성 순환은 컴파일러가 막는다. 하지만 "일단 server에 다 넣자"는 컴파일러가 막지 못하니 리뷰에서 막는다.

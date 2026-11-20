@@ -15,7 +15,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-The dev environment runs inside Rancher Desktop: PostgreSQL and Valkey as containers (`dev/compose.yaml`), and the Linux check as `docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate`. Do not install a separate WSL distribution. Run the Linux gate before promoting work to `main`. Builds use the committed `.sqlx/` query data (`SQLX_OFFLINE=true`); after changing any SQL or migration, run `scripts/sqlx-prepare.sh` and commit the result.
+The dev environment runs inside Rancher Desktop: PostgreSQL and Valkey as containers (`dev/compose.yaml`), and the Linux check as `docker compose --env-file .env -f dev/compose.yaml run --rm linux-gate`. Do not install a separate WSL distribution. Run the Linux gate before promoting work to `main`. Builds use the committed `.sqlx/` query data (`SQLX_OFFLINE=true`); after changing any SQL or migration, run `scripts/sqlx-prepare.sh` and commit the result. Building needs `protoc` on the PATH. Message IDs are generated from the tables in `docs/protocol/message-catalog.md`; change a message there (and in the `.ko.md` twin) first, then the `.proto` files.
 
 ## Hard rules
 

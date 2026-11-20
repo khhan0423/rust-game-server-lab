@@ -18,7 +18,8 @@ Notation: Required (**MUST**), prohibited (**MUST NOT**), recommended (**SHOULD*
 |---|---|---|---|---|
 | **ConnId** | Gateway | **No** (internal to the server) | One TCP connection | Filters out late events from an old connection |
 | **session_key** | Gateway | **Yes** | From issuance in `AuthOk` until the session ends | Proves that the client is reconnecting to the same session |
-| **PlayerId** | Server (DB) | Yes | Lifetime of the character | Identifies the character |
+| **PlayerId** | Server (DB) | **No** | Lifetime of the character | Identifies the character inside the servers. Never sent to a client (design 07, section 5.1) |
+| **Player tag**, **nickname** | Entry server (AccountDB) | Yes | Until reissued or renamed | The public names of the character. What a client uses to refer to a player |
 | **seq / ack** | Both sides | Yes | One session (starts at 1 when the session changes) | Recovers lost Reliable messages (document 02, section 7) |
 
 ### 1.1 session_key Rules
@@ -42,7 +43,7 @@ All handshake messages are non-Reliable (`seq = 0`) because each connection star
 | Direction | Message | Fields |
 |---|---|---|
 | C → S | `Auth` | `login_token` (issued by the game Entry server, document 07, section 3.2), `protocol_version`, `client_version`, `platform` |
-| S → C | `AuthOk` | `session_key`, `player_id`, `server_time`, `timers` (section 6) |
+| S → C | `AuthOk` | `session_key`, `player_tag`, `nickname`, `server_time`, `timers` (section 6) |
 | S → C | `Close` | `reason`, `reconnect_allowed` (section 7). Authentication failure, version mismatch, and so on |
 
 ### 2.2 Reconnect (Relogin)

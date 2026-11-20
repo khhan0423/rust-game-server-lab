@@ -53,7 +53,7 @@ A phase is complete only when all of the following are done.
 | Phase | Name | Status | Notes |
 |---|---|---|---|
 | P0 | Foundation | **Done** (2026-11-19) | Crates `infra`, `db`, `server`, `gateway`. 14 tests. Gate passed on Windows (MSVC, Rust 1.100.0) and on Linux (the `linux-gate` container on Rancher Desktop, 2026-11-20) |
-| P1 | Protocol and frames | Not started | |
+| P1 | Protocol and frame | **Done** (2026-11-20) | Message catalog, `protocol` crate (34 client messages, 13 server controls), `net` crate (frame and envelope codecs). Not yet wired into the servers |
 | P2 | Server launcher | Not started | |
 | P3 | Connection and session | In progress | Publisher login server done (guest login, entry tickets, verification API; 2026-11-20). Entry server, gateway sessions, and bot remain |
 | P4 | Content actors and DB | Not started | |

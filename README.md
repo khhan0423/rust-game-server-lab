@@ -15,9 +15,9 @@ This is not a finished game or a framework. Design documents, plans, and code ar
 
 The project is at the pilot stage: verifying the skeleton of the design before building content on top of it. The full plan is in [docs/plan/README.md](docs/plan/README.md).
 
-What exists today is a Cargo workspace with six crates. The game server and the gateway are still skeletons, but they already refuse to come up when the database is missing, the schema is out of date, or a secret is missing. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
+What exists today is a Cargo workspace with eight crates. The game server and the gateway are still skeletons, but they already refuse to come up when the database is missing, the schema is out of date, or a secret is missing. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
 
-Next up is the protocol and frame codec, then the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. The launcher, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
+The message definitions and the frame codec are written and tested, but not yet wired into the servers. Next up are the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. The launcher, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
 
 ## How it is put together
 
@@ -58,6 +58,8 @@ crates/
   infra/      config, logging, metrics, admin port (shared by every server)
   db/         all database access; SQL lives only here
   server/     game server binary
+  protocol/   message definitions (.proto) and the message ID table
+  net/        frame codec and server-to-server envelope codec
   gateway/    gateway binary
   publisher/  publisher login server binary (guest login, entry tickets)
   client/     GUI test client (Bevy and egui)
@@ -75,7 +77,7 @@ Crates are added in the stage that first needs them. Still to come: `protocol`, 
 
 ## Running it
 
-You need Rust (the version is pinned in `rust-toolchain.toml`, and rustup installs it for you) and a Docker-compatible runtime for PostgreSQL 17 and Valkey 8. I use Rancher Desktop.
+You need Rust (the version is pinned in `rust-toolchain.toml`, and rustup installs it for you) and a Docker-compatible runtime for PostgreSQL 17 and Valkey 8. I use Rancher Desktop. Building also needs the Protocol Buffers compiler (`protoc`) on the PATH.
 
 ```sh
 cp .env.example .env          # change the password; .env is never committed
