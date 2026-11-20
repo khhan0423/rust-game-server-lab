@@ -1,7 +1,9 @@
 # 파일럿 계획
 
+[English](01-pilot.md) | **한국어**
+
 - 상태: **초안** (2026-11-19)
-- 상위 문서: [실행 계획](README.md). 테스트 시나리오: [03-test-scenarios.md](03-test-scenarios.md)
+- 상위 문서: [실행 계획](README.ko.md). 테스트 시나리오: [03-test-scenarios.md](03-test-scenarios.ko.md)
 
 ## 1. 파일럿이 무엇인가
 
@@ -78,7 +80,7 @@ P0 기반 ─► P1 프로토콜 ─► P3 접속 ─► P4 컨텐츠 ─► P5 
 | P8 | 재접속 | Reliable 순번과 확인, 재전송 버퍼, Resume, 다른 Gateway로 이어 붙기 | 2주 |
 | P9 | 부하 측정과 판정 | 봇 부하 시나리오, 대시보드, 설정값 결정, 파일럿 보고서 | 1~2주 |
 
-규모는 1인 개발 + AI 보조 기준의 추정이다. 실제 진행은 [README](README.md)의 진행표에 기록한다.
+규모는 1인 개발 + AI 보조 기준의 추정이다. 실제 진행은 [README](README.ko.md)의 진행표에 기록한다.
 
 ### P0. 기반
 

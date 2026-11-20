@@ -1,5 +1,7 @@
 # 실행 계획
 
+[English](README.md) | **한국어**
+
 - 상태: **초안** (2026-11-19)
 - 근거: `docs/design/` 01~10, `docs/protocol/session-contract.md`, `docs/RUST_GUIDELINES.md`, `AGENTS.md`
 
@@ -9,9 +11,9 @@
 
 | 문서 | 내용 |
 |---|---|
-| [01-pilot.md](01-pilot.md) | 파일럿: 무엇을 증명하나, 열 단계, 판정 기준, 위험 |
-| [02-development-phases.md](02-development-phases.md) | 파일럿 뒤의 개발 단계 D1~D9와 구현 순서 |
-| [03-test-scenarios.md](03-test-scenarios.md) | 단계별 테스트 시나리오 (번호, 방법, 기대 결과) |
+| [01-pilot.md](01-pilot.ko.md) | 파일럿: 무엇을 증명하나, 열 단계, 판정 기준, 위험 |
+| [02-development-phases.md](02-development-phases.ko.md) | 파일럿 뒤의 개발 단계 D1~D9와 구현 순서 |
+| [03-test-scenarios.md](03-test-scenarios.ko.md) | 단계별 테스트 시나리오 (번호, 방법, 기대 결과) |
 
 ## 한눈에 보기
 
@@ -49,7 +51,7 @@
 
 | 단계 | 이름 | 상태 | 비고 |
 |---|---|---|---|
-| P0 | 기반 | **완료** (2026-11-19) | 크레이트 `infra`, `db`, `server`, `gateway`. 테스트 14개. Rust 1.100.0, Windows(MSVC)에서 게이트 통과. Linux(WSL2) 확인은 아직 하지 않음 |
+| P0 | 기반 | **완료** (2026-11-19) | 크레이트 `infra`, `db`, `server`, `gateway`. 테스트 14개. Windows(MSVC, Rust 1.100.0)와 Linux(Rancher Desktop의 `linux-gate` 컨테이너, 2026-11-20)에서 게이트 통과 |
 | P1 | 프로토콜과 프레임 | 시작 전 | |
 | P2 | 서버 런처 | 시작 전 | |
 | P3 | 접속과 세션 | 시작 전 | 퍼블리셔 로그인 서버 포함 |
@@ -75,7 +77,7 @@
 | C5 | 난수 | 세션 키 생성 | `rand` (운영체제 난수원 사용) |
 | C6 | 명령줄 인자 처리 | 런처의 창 없는 모드, 봇 시나리오 선택 | `clap` |
 | C7 | 개발용 인증 | 스팀 연동 전까지의 로그인 | **변경 (2026-11-19):** 가짜 인증을 만들지 않는다. 퍼블리셔 로그인 서버를 파일럿 P3에서 만들고 게스트 로그인을 쓴다 |
-| C8 | 퍼블리셔 로그인 서버의 크레이트 | 설계 07의 퍼블리셔 영역(계정, 로그인 수단, 입장 티켓)을 구현할 곳이 필요하다 | `crates/publisher` 바이너리. Login DB의 SQL은 `db` 크레이트의 별도 모듈에 둔다. 게임 서버 크레이트는 Login DB에 접근하지 않는다 |
+| C8 | 퍼블리셔 로그인 서버의 크레이트 | 설계 07의 퍼블리셔 영역(계정, 로그인 수단, 입장 티켓)을 구현할 곳이 필요하다 | `crates/publisher` 바이너리. Login DB의 SQL은 `db` 크레이트의 별도 모듈에 둔다. 게임 서버 크레이트는 Login DB에 접근하지 않는다. 2026-11-20 승인 |
 
 ## 써야 할 설계 문서
 
