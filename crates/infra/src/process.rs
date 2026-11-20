@@ -93,12 +93,28 @@ impl Process {
     /// Signals that the startup barrier has finished. Turns on `/health/ready` and writes one line
     /// `ready admin=<address>` to standard output for the parent process to read (the launcher and integration tests wait for this line).
     pub fn mark_ready(&self) -> Result<(), ProcessError> {
+        self.mark_ready_with(&[])
+    }
+
+    /// Announces readiness with additional named listener addresses on the same line.
+    pub fn mark_ready_with(&self, listeners: &[(&str, SocketAddr)]) -> Result<(), ProcessError> {
         self.readiness.set_ready();
         metrics::gauge!("server_ready").set(1.0);
         let mut stdout = std::io::stdout().lock();
-        writeln!(stdout, "ready admin={}", self.admin_addr)
+        write!(stdout, "ready admin={}", self.admin_addr)
+            .and_then(|()| {
+                for (name, addr) in listeners {
+                    write!(stdout, " {name}={addr}")?;
+                }
+                writeln!(stdout)
+            })
             .and_then(|()| stdout.flush())
             .map_err(ProcessError::Announce)
+    }
+
+    /// Resolves when the process starts graceful shutdown.
+    pub fn shutdown_signal(&self) -> impl Future<Output = ()> + use<> {
+        self.shutdown.clone().cancelled_owned()
     }
 
     /// Waits for the shutdown signal (Ctrl+C), then closes the admin port.
