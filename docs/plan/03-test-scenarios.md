@@ -98,6 +98,11 @@ A scenario number is `phase-kind-number`. Example: `P4-D-02` is DB test 2 of pil
 | P3-I-11 | Guest login with a wrong secret | Rejected. No ticket is issued |
 | P3-I-12 | Enter again with an already used ticket | Rejected |
 | P3-I-13 | Client sends a different account number directly to Entry | Ignored. Only the account verified by the publisher is used |
+| P3-U-07 | Player tag generation and input | Nine characters from the allowed set only. Input with hyphens or lowercase resolves to the same tag |
+| P3-D-04 | Two first entries ask for the same nickname at once (including a lookalike spelling) | One succeeds. The other is told the name is taken and no account row is left behind |
+| P3-I-14 | First entry without a nickname, then with one | The first answer is "character required" with a creation token. Sending the token and a nickname creates the character and issues a player tag |
+| P3-I-15 | First entry with a taken nickname, then another name on the same creation token | The second attempt succeeds |
+| P3-I-16 | Any response to the game client | Contains no `PlayerId` and no `AccountId` |
 
 ### P4. Content actors and DB
 

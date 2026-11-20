@@ -109,7 +109,7 @@ The scale is estimated for one developer + AI assistance. Actual progress is rec
 ### P3. Connections and Sessions
 
 - **Publisher login server:** A web server separate from the game (Design 07, Chapter 2). Implement only guest login for the pilot. Guest account creation (store only the hash of the secret kept on the device), login, game entry ticket issuance, a ticket verification API called by the game, and the Login DB. Add other login methods such as Steam to the same structure later (D6).
-- **Entry server:** Verify the ticket with the publisher login server (do not trust account information sent by the client), look up AccountDB and handle first entry, assign a shard (prioritize the friend code; if none, use the shard with the lowest cumulative player count), and issue a signed `login_token`.
+- **Entry server:** Verify the ticket with the publisher login server (do not trust account information sent by the client), look up AccountDB and handle first entry, assign a shard (prioritize the friend code; if none, use the shard with the lowest cumulative player count), and issue a signed `login_token`. At first entry it takes the nickname (unique across the game), issues the player tag, and never sends internal keys to the client (design 07 section 5.1).
 - **Gateway:** Accept connections, handle session state transitions, verify tokens, handle duplicate login using Valkey `online:{account}`, route by message ID range, handle heartbeats, and enforce size and rate limits.
 - **Game server:** Accept Gateway links and notify of session binding (`SessionBound`).
 - **Bot:** A reference implementation that connects according to the session contract, and a scenario runner.

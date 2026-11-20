@@ -153,8 +153,8 @@ All requests and responses are JSON over HTTP. An error response is `{ "error": 
 
 | Call | Who calls it | Request | Success response |
 |---|---|---|---|
-| `POST /v1/guest/accounts` | Client, on first launch | `{}` | `201` `{ "account_id", "guest_id", "secret" }`. The secret is returned only this once |
-| `POST /v1/guest/login` | Client | `{ "guest_id", "secret", "game_id" }` | `200` `{ "account_id", "ticket", "expires_in_secs", "entry_url" }` |
+| `POST /v1/guest/accounts` | Client, on first launch | `{}` | `201` `{ "guest_id", "secret" }`. The secret is returned only this once |
+| `POST /v1/guest/login` | Client | `{ "guest_id", "secret", "game_id" }` | `200` `{ "ticket", "expires_in_secs", "entry_url" }` |
 | `POST /v1/tickets/verify` | Game Entry server, with the `x-api-key` header | `{ "ticket", "game_id" }` | `200` `{ "account_id", "membership", "sanction" }`. Verification consumes the ticket |
 
 | Error code | Status | When |
@@ -167,6 +167,7 @@ All requests and responses are JSON over HTTP. An error response is `{ "error": 
 | `ticket_invalid` | 404 | The ticket is unknown, expired, already used, or was issued for another game. The cases are not distinguished |
 | `internal_error` | 500 | The server failed for a reason of its own, such as the database being unreachable. Details go to the operations log, not to the caller |
 
+- Responses to the client carry no account ID. Internal keys stay on the server side (section 5.1); only the verification call, which is server to server, returns `account_id`.
 - `account_id` and `guest_id` are UUID v7 strings. `secret` and `ticket` are 32 random bytes written as 64 hexadecimal characters.
 - LoginDB stores only the SHA-256 hash of a secret or a ticket. The pilot computes the hash with the database's built-in `sha256()`. Before this server handles real users, hashing moves into the server process so the plain value never reaches the database.
 - In the verification response, `membership` is one of `"member"`, `"canceled"`, `"sanctioned"` (the account's state in that game) and `sanction` is one of `"none"`, `"sanctioned"`, `"closing"` (the account's platform state). Both are strings, so the database encoding is not exposed and values can be added later.
@@ -241,6 +242,44 @@ Client ──TCP──> Load balancer ──> Gateway ──Auth(login_token)─
 - The **two gendered appearance presets** are attributes of one character. Store both presets' appearance data and the "active preset" in the character data in Game DB. Handle switching through a Content message on the home shard and apply the result (the appearance in `CombatProfile`) to the current InGameSpace.
 - There is no character selection step. Game entry uses `EnterGame` (document 02).
 
+### 5.1 Player Tag and Nickname (owner decision, 2026-11-20)
+
+Players need a way to point at each other for friend requests, whispers, and invitations. The internal keys cannot serve: they can never be changed once known, `PlayerId` and `AccountId` reveal when the account was made, and nobody can type 36 characters. So each character has two public names, and the internal keys never reach a game client.
+
+| | Player tag | Nickname |
+|---|---|---|
+| What it is for | Finding one exact player: friend requests, friend codes, support tickets | The name shown in the world, in chat, and in rankings |
+| Who chooses it | The Entry server, at random | The player, at first entry |
+| Unique | Across the whole game | Across the whole game |
+| Can change | Yes, by reissue | Policy not decided yet |
+
+**Player tag**
+
+- Nine characters drawn at random from capital letters and digits, leaving out `0`, `O`, `1`, `I`, and `L` (31 symbols, about 26 trillion combinations). Shown in groups of three, such as `K7Q-M2X-RP4`. Stored without the hyphens. Input is accepted with or without hyphens and in either case.
+- Never sequential, so a tag says nothing about how many players exist and tags cannot be walked in order.
+- The Entry server issues it at first entry. AccountDB's unique constraint guards uniqueness; on a collision the server draws again.
+- **The friend code is the player tag.** The friend code a new player enters to join a friend's shard (section 4) is that friend's tag.
+- A player can have the tag reissued once every 30 days (a config value); an operator can reissue it at any time. The old tag stops working at once. Friend relationships are stored by `PlayerId`, so they survive a reissue.
+- Looking up a tag is rate limited per player, so tags cannot be guessed in bulk.
+
+**Nickname**
+
+- Unique across the whole game, not per shard. Players from different shards meet in fields, dungeons, and parties, and they must be told apart by name alone.
+- AccountDB keeps the name as typed for display and a normalized form (case folded and Unicode normalized, so lookalike spellings count as the same name) in a separate unique column. The unique constraint decides who gets a name when two players ask at once.
+- Allowed characters, length, a blocked word list, and the renaming policy are not decided yet (section 8).
+
+**What a game client receives**
+
+- About another player: nickname and player tag. Inside a space, players are referred to by a number that is valid only in that space and is assigned again on every entry.
+- `PlayerId` and `AccountId` are never sent to a game client, not even the player's own.
+
+**First entry needs a nickname**
+
+A ticket is single-use, so the Entry server cannot ask for a nickname and then verify the same ticket again. First entry therefore takes two steps:
+
+1. The client sends the ticket. The Entry server verifies it. If AccountDB has no character for the account, the server answers "character required" with a short-lived creation token that it signed for that account.
+2. The client sends the creation token, the nickname, and optionally a friend code. The Entry server inserts the account row, the player tag, and the nickname in one transaction. If the nickname is taken, it answers so, and the client tries another name with the same token.
+
 ---
 
 ## 6. AccountDB Schema (Draft, Game-Owned)
@@ -248,7 +287,11 @@ Client ──TCP──> Load balancer ──> Gateway ──Auth(login_token)─
 ```sql
 CREATE TABLE game_accounts (
     account_id   text PRIMARY KEY,             -- AccountID supplied by the publisher (unique key)
-    player_id    uuid NOT NULL UNIQUE,         -- One character
+    player_id    uuid NOT NULL UNIQUE,         -- One character. Never sent to a game client
+    player_tag   text NOT NULL UNIQUE,         -- Public tag, also the friend code (section 5.1)
+    tag_issued_at timestamptz NOT NULL,        -- For the reissue interval
+    nickname     text NOT NULL,                -- As typed, for display
+    nickname_key text NOT NULL UNIQUE,         -- Normalized form; decides uniqueness
     home_shard   smallint NOT NULL,            -- Source of truth for the player directory (document 03, section 7.2)
     status       smallint NOT NULL,            -- Game sanctions and status based on publisher notifications
     created_at   timestamptz NOT NULL
@@ -283,3 +326,5 @@ CREATE TABLE game_sanctions (
 |---|---|---|
 | L9 | Game data retention after account closure | **Provisional (2026-11-19):** Keep data for 6 months after account closure (recovery is possible), then move it to an archive without deleting it. Privacy laws may require destroying or separately storing personally identifiable information (platform account links, contact details, etc.). Confirm with legal before finalizing the plan to retain only game data in the archive |
 | L10 | Behavior when publisher authentication verification is unavailable (including Steam) | **Final (2026-11-19):** If verification is unavailable, reject only new entries. Players already connected are unaffected |
+| - | Nickname rules | Allowed characters, minimum and maximum length, and the blocked word list. Needed before the Entry server accepts real names |
+| - | Nickname changes | Whether a player can rename, how often or at what cost, and how long the old name stays reserved |
