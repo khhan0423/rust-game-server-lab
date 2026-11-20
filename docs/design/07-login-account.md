@@ -11,7 +11,7 @@ We publish the game ourselves. We therefore separate the **publisher domain** (p
 
 | # | Decision | Details |
 |---|---|---|
-| L1 | Default login | **The released game logs in with Steam.** Guest login exists only for development and for closed network tests with invited friends before Steam is connected; it is switched off in every other environment (owner decision, 2026-11-20). The account structure still lets a guest account link a platform login later, so test accounts can be kept if needed |
+| L1 | Default login | **The released game logs in with Steam.** Guest login exists only for development and for invite-only tests before Steam is connected (the friends test and the alpha); it is switched off from the beta on (owner decision, 2026-11-20). The account structure still lets a guest account link a platform login later, so test accounts can be kept if needed |
 | L2 | Supported platforms | **Google, Apple, Steam** + Guest. Keep all options open and **implement Steam first** (owner decision, 2026-11-19). See document 09, section 1.1 for the Steam login procedure |
 | L3 | Accounts and login methods | **Separate them.** Link multiple login methods to one publisher account (section 2) |
 | L4 | Characters | **One character per account in this game.** This is a subculture game. The two gendered appearance presets are attributes of that character (section 5) |
@@ -167,7 +167,7 @@ All requests and responses are JSON over HTTP. An error response is `{ "error": 
 | `ticket_invalid` | 404 | The ticket is unknown, expired, already used, or was issued for another game. The cases are not distinguished |
 | `internal_error` | 500 | The server failed for a reason of its own, such as the database being unreachable. Details go to the operations log, not to the caller |
 
-- The guest method is a switch in the Login server's configuration. It is on for development and the friends test and off everywhere else, and when it is on, creating a guest account can require an invite code (see `docs/plan/04-test-stages.md`). With the switch off, the two guest calls answer `404`.
+- The guest method is a switch in the Login server's configuration. It is on for development, the friends test, and the alpha, and off from the beta on, and when it is on, creating a guest account can require an invite code (see `docs/plan/04-test-stages.md`). With the switch off, the two guest calls answer `404`.
 - Responses to the client carry no account ID. Internal keys stay on the server side (section 5.1); only the verification call, which is server to server, returns `account_id`.
 - `account_id` and `guest_id` are UUID v7 strings. `secret` and `ticket` are 32 random bytes written as 64 hexadecimal characters.
 - LoginDB stores only the SHA-256 hash of a secret or a ticket. The pilot computes the hash with the database's built-in `sha256()`. Before this server handles real users, hashing moves into the server process so the plain value never reaches the database.
