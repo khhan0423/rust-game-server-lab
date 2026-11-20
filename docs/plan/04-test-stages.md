@@ -19,6 +19,8 @@ This note walks through how the game gets from the developer's PC to paying play
 
 What Steam's documentation says about Steam Playtest, checked on 2026-11-20 ([source](https://partner.steamgames.com/doc/features/playtest)): it is a separate app linked to the main game, it has the same Steamworks technical features as the main game, the developer controls who gets in and can switch it off at any time, it is free, and it must not be monetized with in-game transactions or sold. Charging for a work in progress means Steam Early Access instead. Because a playtest build is started through Steam, Steam login can be used from the alpha on.
 
+Steam login has a cost and a lead time. A playtest app is created from the main game's app, so the game must first be registered with Steam, which costs 100 US dollars per app. The fee is not refundable, but it is paid back once the game has earned 1,000 US dollars ([source](https://partner.steamgames.com/doc/gettingstarted/appfee)). The server verifies a player's Steam ticket with a Web API key tied to that app ([source](https://partner.steamgames.com/doc/features/auth)), so there is no way to test real Steam login without the registration. If the fee is to be put off, the alpha can run like a larger friends test, with guest login and invite codes, and Steam login can start at the beta.
+
 ## What each stage is for
 
 **Friends test.** The first time the servers run across the internet with real people. The goal is to find out whether login, moving around together, and reconnecting hold up outside one PC, and to hear what feels wrong. It is small and informal. Accounts are guest accounts and will not be kept.
@@ -52,7 +54,7 @@ What Steam's documentation says about Steam Playtest, checked on 2026-11-20 ([so
 | Question | Recommendation |
 |---|---|
 | How friends get into the friends test | Invite codes, handed out by the developer |
-| Where the friends test server runs | A small rented Linux server, so the developer's PC and home network are not exposed. The developer's PC is acceptable for a first short session |
+| Where the friends test server runs | **Decided (2026-11-20):** a Linux server on AWS, set up by the owner when the test is near. Until then everything runs on the development PC |
 | Login from the alpha on | Steam only, through Steam Playtest |
 | Whether data carries over between stages | No. Wipe at the end of every stage before launch; carry over only named rewards |
 | When Steam login is built | Before the alpha, together with the Entry server work, using a Steam Playtest app |
