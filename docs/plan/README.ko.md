@@ -14,6 +14,7 @@
 | [01-pilot.md](01-pilot.ko.md) | 파일럿: 무엇을 증명하나, 열 단계, 판정 기준, 위험 |
 | [02-development-phases.md](02-development-phases.ko.md) | 파일럿 뒤의 개발 단계 D1~D9와 구현 순서 |
 | [03-test-scenarios.md](03-test-scenarios.ko.md) | 단계별 테스트 시나리오 (번호, 방법, 기대 결과) |
+| [04-test-stages.ko.md](04-test-stages.ko.md) | 초안: 개발부터 출시까지의 단계(지인 테스트, 알파, 베타)와 단계마다 서버에 필요한 것 |
 
 ## 한눈에 보기
 

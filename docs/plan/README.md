@@ -14,6 +14,7 @@ This document defines the order, scope, and verification method for turning the 
 | [01-pilot.md](01-pilot.md) | Pilot: what to prove, ten phases, acceptance criteria, risks |
 | [02-development-phases.md](02-development-phases.md) | Development phases D1~D9 after the pilot and implementation order |
 | [03-test-scenarios.md](03-test-scenarios.md) | Test scenarios per phase (number, method, expected result) |
+| [04-test-stages.md](04-test-stages.md) | Draft: the stages from development to launch (friends test, alpha, beta) and what the server needs for each |
 
 ## At a glance
 
