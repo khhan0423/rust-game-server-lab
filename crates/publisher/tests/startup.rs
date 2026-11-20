@@ -103,10 +103,12 @@ async fn publisher_serves_guest_creation_login_and_single_use_verification(pool:
     let response = client.post(&create).json(&json!({})).send().await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let guest: Value = response.json().await.unwrap();
-    for field in ["account_id", "guest_id"] {
-        let id = Uuid::parse_str(guest[field].as_str().unwrap()).unwrap();
-        assert_eq!(id.get_version(), Some(Version::SortRand));
-    }
+    assert!(
+        guest.get("account_id").is_none(),
+        "guest creation leaked the account ID"
+    );
+    let guest_id = Uuid::parse_str(guest["guest_id"].as_str().unwrap()).unwrap();
+    assert_eq!(guest_id.get_version(), Some(Version::SortRand));
     let secret = credential(&guest["secret"]);
     let login_body = |game_id: &str| json!({"guest_id": guest["guest_id"], "secret": secret, "game_id": game_id});
     for (body, status, code) in [
@@ -133,7 +135,10 @@ async fn publisher_serves_guest_creation_login_and_single_use_verification(pool:
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let entry: Value = response.json().await.unwrap();
-    assert_eq!(entry["account_id"], guest["account_id"]);
+    assert!(
+        entry.get("account_id").is_none(),
+        "guest login leaked the account ID"
+    );
     assert_eq!(entry["entry_url"], "http://127.0.0.1:7200");
     assert_eq!(entry["expires_in_secs"], 60);
     let verify_body = json!({"ticket": credential(&entry["ticket"]), "game_id": "lab"});
@@ -159,10 +164,16 @@ async fn publisher_serves_guest_creation_login_and_single_use_verification(pool:
     };
     let response = verify_request().send().await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    let verified: Value = response.json().await.unwrap();
+    let account_id = verified["account_id"].as_str().unwrap();
     assert_eq!(
-        response.json::<Value>().await.unwrap(),
+        Uuid::parse_str(account_id).unwrap().get_version(),
+        Some(Version::SortRand)
+    );
+    assert_eq!(
+        verified,
         json!({
-            "account_id": guest["account_id"], "membership": "member", "sanction": "none"
+            "account_id": account_id, "membership": "member", "sanction": "none"
         })
     );
     assert_error(

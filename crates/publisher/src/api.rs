@@ -41,7 +41,6 @@ struct CreateRequest {}
 
 #[derive(Serialize)]
 struct Created {
-    account_id: String,
     guest_id: String,
     secret: String,
 }
@@ -55,7 +54,6 @@ struct LoginRequest {
 
 #[derive(Serialize)]
 struct LoggedIn {
-    account_id: String,
     ticket: String,
     expires_in_secs: u32,
     entry_url: String,
@@ -148,7 +146,6 @@ async fn create_guest(
     Ok((
         StatusCode::CREATED,
         Json(Created {
-            account_id: account_id.as_str().to_owned(),
             guest_id: guest_id.as_str().to_owned(),
             secret: encode(secret.expose()),
         }),
@@ -200,7 +197,6 @@ async fn login_guest(
         "game entry issued"
     );
     Ok(Json(LoggedIn {
-        account_id: account_id.as_str().to_owned(),
         ticket: encode(ticket.expose()),
         expires_in_secs: state.ttl_secs,
         entry_url: game.entry_url.clone(),
