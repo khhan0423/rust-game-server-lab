@@ -1,6 +1,6 @@
-//! Gateway 바이너리 (설계 02).
+//! Gateway binary (design 02).
 //!
-//! 지금은 프로세스 공통 부분만 있다: 설정, 로그, 관리 포트, 준비 통지.
+//! For now it has only the common process part: config, logging, admin port, ready notification.
 
 use std::path::PathBuf;
 
@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Parser)]
 struct Cli {
-    /// 설정 파일(TOML) 경로
+    /// Path to the config file (TOML)
     #[arg(long)]
     config: PathBuf,
 }

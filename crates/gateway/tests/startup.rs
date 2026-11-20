@@ -1,4 +1,4 @@
-//! Gateway가 떠서 준비됨을 알리고 관리 포트에 응답하는지.
+//! Whether the Gateway starts, signals ready, and responds on the admin port.
 
 use std::net::SocketAddr;
 use std::path::Path;
@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-/// 이벤트를 기다리는 상한. 동기화 수단이 아니라, 멈춘 테스트를 끊는 차단기다.
+/// Upper bound for waiting on an event. Not a synchronization mechanism, but a breaker that cuts off a stuck test.
 const WAIT: Duration = Duration::from_secs(60);
 
 #[tokio::test]

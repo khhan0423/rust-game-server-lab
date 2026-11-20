@@ -1,2 +1,2 @@
--- Game DB 기준선. 실제 테이블은 Game DB 스키마 설계(계획 P4)에서 추가한다.
+-- Game DB baseline. Actual tables are added in the Game DB schema design (plan P4).
 SELECT 1;

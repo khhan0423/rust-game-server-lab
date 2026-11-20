@@ -1,4 +1,4 @@
-//! Game 서버의 기동 배리어: 준비가 끝나야 ready를 알리고, 준비에 실패하면 뜨지 않는다.
+//! Startup barrier of the Game server: it signals ready only after preparation finishes, and does not start if preparation fails.
 
 #![expect(
     clippy::unwrap_used,
@@ -15,7 +15,7 @@ use sqlx::{ConnectOptions, PgPool};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 
-/// 이벤트를 기다리는 상한. 동기화 수단이 아니라, 멈춘 테스트를 끊는 차단기다.
+/// Upper bound for waiting on an event. Not a synchronization mechanism, but a breaker that cuts off a stuck test.
 const WAIT: Duration = Duration::from_secs(60);
 const DB_URL_ENV: &str = "GAME_DB_URL";
 
@@ -62,7 +62,7 @@ async fn ready_admin_addr(child: &mut Child) -> SocketAddr {
         .unwrap()
 }
 
-/// 프로세스가 끝나기를 기다려 (성공 여부, 표준 출력)을 돌려준다.
+/// Waits for the process to exit and returns (success, standard output).
 async fn finished(mut command: Command) -> (bool, String) {
     let output = tokio::time::timeout(WAIT, command.spawn().unwrap().wait_with_output())
         .await

@@ -1,48 +1,48 @@
-//! DB 접근 전담 크레이트. SQL과 저장소 접근 코드는 여기에만 둔다 (가이드 8장).
+//! Crate dedicated to DB access. SQL and storage access code lives only here (guidelines section 8).
 
 use std::time::Duration;
 
 use sqlx::migrate::{Migrate, MigrateError, Migrator};
 use sqlx::postgres::PgPoolOptions;
 
-/// PostgreSQL 커넥션 풀.
+/// PostgreSQL connection pool.
 pub type Pool = sqlx::PgPool;
 
-/// 모든 샤드의 Game DB에 같은 내용으로 적용하는 마이그레이션.
+/// Migrations applied with identical content to the Game DB of every shard.
 pub static GAME_MIGRATOR: Migrator = sqlx::migrate!("../../migrations/game");
 
-/// "그런 테이블이 없다"를 뜻하는 SQLSTATE 코드.
+/// SQLSTATE code meaning "no such table".
 const UNDEFINED_TABLE: &str = "42P01";
 
-/// DB 작업이 실패한 이유.
+/// Why a DB operation failed.
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
-    /// 연결이나 쿼리 실행 실패.
+    /// Connection or query execution failed.
     #[error("database error")]
     Sqlx(#[from] sqlx::Error),
-    /// 마이그레이션 적용이나 조회 실패.
+    /// Applying or querying migrations failed.
     #[error("migration error")]
     Migrate(#[from] MigrateError),
-    /// DB에 적용된 마이그레이션이 이 바이너리가 기대하는 버전과 다르다.
+    /// The migrations applied to the DB differ from the version this binary expects.
     #[error("schema is out of date: applied version {applied:?}, expected {expected}")]
     SchemaOutOfDate {
-        /// DB에 적용된 가장 높은 버전. 하나도 없으면 `None`.
+        /// Highest version applied to the DB. `None` if none are applied.
         applied: Option<i64>,
-        /// 바이너리에 들어 있는 가장 높은 버전.
+        /// Highest version embedded in the binary.
         expected: i64,
     },
 }
 
-/// 커넥션 풀 설정 (설계 04 3장).
+/// Connection pool settings (design 04 section 3).
 #[derive(Debug, Clone, Copy)]
 pub struct PoolSettings {
-    /// 동시에 여는 커넥션 수의 상한.
+    /// Upper bound on the number of connections open at the same time.
     pub max_connections: u32,
-    /// 커넥션을 얻으려고 기다리는 최대 시간. 처음 접속에도 적용된다.
+    /// Maximum time to wait to acquire a connection. Also applies to the first connection.
     pub acquire_timeout: Duration,
 }
 
-/// DB에 접속해 풀을 만든다. 접속에 실패하면 에러를 돌려준다.
+/// Connects to the DB and creates a pool. Returns an error if the connection fails.
 pub async fn connect(url: &str, settings: PoolSettings) -> Result<Pool, DbError> {
     let pool = PgPoolOptions::new()
         .max_connections(settings.max_connections)
@@ -52,15 +52,15 @@ pub async fn connect(url: &str, settings: PoolSettings) -> Result<Pool, DbError>
     Ok(pool)
 }
 
-/// 아직 적용되지 않은 마이그레이션을 차례로 적용한다. 배포 도구가 부른다.
+/// Applies pending migrations in order. Called by the deployment tool.
 pub async fn migrate(pool: &Pool, migrator: &Migrator) -> Result<(), DbError> {
     migrator.run(pool).await?;
     Ok(())
 }
 
-/// DB 스키마가 이 바이너리의 마이그레이션과 같은 버전인지 확인한다. DB를 바꾸지 않는다.
+/// Checks that the DB schema is at the same version as this binary's migrations. Does not modify the DB.
 ///
-/// 서버는 기동 배리어에서 이 확인을 통과해야 손님을 받는다(설계 01 10.0).
+/// The server must pass this check at the startup barrier before accepting players (design 01 section 10.0).
 pub async fn check_schema(pool: &Pool, migrator: &Migrator) -> Result<(), DbError> {
     let Some(expected) = migrator
         .iter()

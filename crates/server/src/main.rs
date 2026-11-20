@@ -1,7 +1,7 @@
-//! Game 서버 바이너리.
+//! Game server binary.
 //!
-//! 지금은 기동 배리어까지만 한다: 설정, 로그, 관리 포트, Game DB 연결과 스키마 확인이
-//! 모두 끝나야 준비됨을 알린다(설계 01 10.0).
+//! For now it only goes as far as the startup barrier: it signals ready only after config, logging, the admin port,
+//! the Game DB connection, and the schema check have all finished (design 01 section 10.0).
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -12,12 +12,12 @@ use infra::config::Secret;
 use infra::process::{Process, ProcessConfig};
 use serde::Deserialize;
 
-/// Game DB 접속 문자열을 담는 환경 변수. 비밀값이라 설정 파일에 두지 않는다(설계 08 8장).
+/// Environment variable holding the Game DB connection string. It is a secret, so it is not kept in the config file (design 08 section 8).
 const GAME_DB_URL_ENV: &str = "GAME_DB_URL";
 
 #[derive(Debug, Parser)]
 struct Cli {
-    /// 설정 파일(TOML) 경로
+    /// Path to the config file (TOML)
     #[arg(long)]
     config: PathBuf,
     #[command(subcommand)]
@@ -26,9 +26,9 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// 서버를 띄운다
+    /// Start the server
     Run,
-    /// Game DB에 마이그레이션을 적용하고 끝낸다
+    /// Apply migrations to the Game DB and exit
     Migrate,
 }
 
@@ -70,7 +70,7 @@ async fn connect_game_db(config: &DbConfig) -> anyhow::Result<db::Pool> {
         .context("connecting to game database")
 }
 
-/// 손님을 받기 전에 끝나야 하는 준비. 하나라도 실패하면 기동 실패다.
+/// Preparation that must finish before accepting players. If any step fails, startup fails.
 async fn startup_barrier(config: &Config) -> anyhow::Result<db::Pool> {
     let pool = connect_game_db(&config.db).await?;
     db::check_schema(&pool, &db::GAME_MIGRATOR)
@@ -84,7 +84,7 @@ async fn run(config: &Config) -> anyhow::Result<()> {
     let pool = match startup_barrier(config).await {
         Ok(pool) => pool,
         Err(error) => {
-            // 운영 로그에 실패 단계를 남긴다. 로그 쓰기는 `process`가 버려질 때 비워진다.
+            // Record the failed step in the operations log. The log writer is flushed when `process` is dropped.
             tracing::error!(error = format!("{error:#}"), "startup failed");
             return Err(error);
         }

@@ -1,4 +1,4 @@
-//! 서버 프로세스 공통 기동과 종료: 로그, 지표, 관리 포트, 준비 통지.
+//! Common startup and shutdown of server processes: logging, metrics, admin port, ready notification.
 
 use std::io::Write;
 use std::net::SocketAddr;
@@ -12,51 +12,51 @@ use tokio_util::sync::CancellationToken;
 use crate::admin::{AdminListener, Readiness};
 use crate::logging::{self, LogError, LogLevel, WorkerGuard};
 
-/// 모든 서버 프로세스가 설정 파일의 `[process]` 표에 두는 항목.
+/// Settings that every server process keeps in the `[process]` table of its config file.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessConfig {
-    /// 관리 포트 주소. 사설망 주소만 쓴다.
+    /// Admin port address. Use only private network addresses.
     pub admin_addr: SocketAddr,
-    /// 운영 로그 디렉터리.
+    /// Operations log directory.
     pub log_dir: PathBuf,
-    /// 운영 로그 레벨.
+    /// Operations log level.
     pub log_level: LogLevel,
 }
 
-/// 프로세스 공통 부분이 실패한 이유.
+/// Why the common process part failed.
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessError {
-    /// 로그를 시작하지 못했다.
+    /// Logging could not be started.
     #[error("cannot start logging")]
     Log(#[from] LogError),
-    /// 지표 수집기를 설치하지 못했다.
+    /// The metrics recorder could not be installed.
     #[error("cannot install metrics recorder")]
     Metrics(#[from] BuildError),
-    /// 관리 포트를 열지 못했다.
+    /// The admin port could not be opened.
     #[error("cannot bind admin port {addr}")]
     AdminBind {
-        /// 열려던 주소.
+        /// The address that was being opened.
         addr: SocketAddr,
-        /// 원인.
+        /// Cause.
         #[source]
         source: std::io::Error,
     },
-    /// 관리 포트가 요청을 처리하다 실패했다.
+    /// The admin port failed while handling requests.
     #[error("admin port failed")]
     AdminServe(#[source] std::io::Error),
-    /// 관리 포트 task가 비정상 종료했다.
+    /// The admin port task terminated abnormally.
     #[error("admin task stopped unexpectedly")]
     AdminTask(#[from] JoinError),
-    /// 준비 통지 줄을 표준 출력에 쓰지 못했다.
+    /// The ready notification line could not be written to standard output.
     #[error("cannot announce readiness")]
     Announce(#[source] std::io::Error),
-    /// 종료 신호를 기다릴 수 없다.
+    /// Cannot wait for the shutdown signal.
     #[error("cannot listen for shutdown signal")]
     Signal(#[source] std::io::Error),
 }
 
-/// 떠 있는 서버 프로세스의 공통 부분.
+/// The common part of a running server process.
 #[derive(Debug)]
 pub struct Process {
     readiness: Readiness,
@@ -67,7 +67,7 @@ pub struct Process {
 }
 
 impl Process {
-    /// 로그와 지표를 켜고 관리 포트를 연다. 이 시점에는 `/health/live`만 200이다.
+    /// Turns on logging and metrics and opens the admin port. At this point only `/health/live` returns 200.
     pub async fn start(config: &ProcessConfig) -> Result<Self, ProcessError> {
         let log = logging::init(&config.log_dir, config.log_level)?;
         let metrics = PrometheusBuilder::new().install_recorder()?;
@@ -90,8 +90,8 @@ impl Process {
         })
     }
 
-    /// 기동 배리어가 끝났음을 알린다. `/health/ready`를 켜고, 부모 프로세스가 읽도록
-    /// 표준 출력에 `ready admin=<주소>` 한 줄을 쓴다(런처와 통합 테스트가 이 줄을 기다린다).
+    /// Signals that the startup barrier has finished. Turns on `/health/ready` and writes one line
+    /// `ready admin=<address>` to standard output for the parent process to read (the launcher and integration tests wait for this line).
     pub fn mark_ready(&self) -> Result<(), ProcessError> {
         self.readiness.set_ready();
         metrics::gauge!("server_ready").set(1.0);
@@ -101,7 +101,7 @@ impl Process {
             .map_err(ProcessError::Announce)
     }
 
-    /// 종료 신호(Ctrl+C)를 기다린 뒤 관리 포트를 닫는다.
+    /// Waits for the shutdown signal (Ctrl+C), then closes the admin port.
     pub async fn run_until_shutdown(self) -> Result<(), ProcessError> {
         tokio::signal::ctrl_c()
             .await

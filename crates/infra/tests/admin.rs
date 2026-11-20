@@ -1,4 +1,4 @@
-//! 관리 포트의 헬스 체크와 지표 응답 (설계 08 2장).
+//! Health check and metrics responses of the admin port (design 08 section 2).
 
 #![expect(
     clippy::unwrap_used,

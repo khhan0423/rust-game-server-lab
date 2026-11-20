@@ -1,4 +1,4 @@
-//! 설정 파일(TOML)과 비밀값(환경 변수) 로드 (설계 08 8장).
+//! Loading the config file (TOML) and secrets (environment variables) (design 08 section 8).
 
 use std::env::VarError;
 use std::fmt;
@@ -6,44 +6,44 @@ use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 
-/// 설정을 읽지 못한 이유.
+/// Why the config could not be read.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    /// 파일을 열거나 읽지 못했다.
+    /// The file could not be opened or read.
     #[error("cannot read config file {}", .path.display())]
     Read {
-        /// 읽으려던 파일.
+        /// The file that was being read.
         path: PathBuf,
-        /// 운영체제가 돌려준 원인.
+        /// The cause reported by the operating system.
         #[source]
         source: std::io::Error,
     },
-    /// TOML 문법이 틀렸거나, 필요한 키가 없거나, 모르는 키가 있다.
+    /// The TOML syntax is wrong, a required key is missing, or there is an unknown key.
     #[error("invalid config file {}", .path.display())]
     Parse {
-        /// 읽으려던 파일.
+        /// The file that was being read.
         path: PathBuf,
-        /// 어느 키가 어떻게 틀렸는지.
+        /// Which key is wrong and how.
         #[source]
         source: toml::de::Error,
     },
-    /// 비밀값을 담아야 할 환경 변수가 없다.
+    /// The environment variable that should hold the secret is missing.
     #[error("environment variable {name} is not set")]
     MissingEnv {
-        /// 환경 변수 이름.
+        /// Environment variable name.
         name: String,
     },
-    /// 환경 변수 값이 UTF-8 문자열이 아니다.
+    /// The environment variable value is not a UTF-8 string.
     #[error("environment variable {name} is not valid UTF-8")]
     InvalidEnv {
-        /// 환경 변수 이름.
+        /// Environment variable name.
         name: String,
     },
 }
 
-/// TOML 설정 파일을 읽어 `T`로 바꾼다.
+/// Reads a TOML config file and converts it to `T`.
 ///
-/// 런타임을 만들기 전, 프로세스 시작 단계에서만 부른다(동기 파일 읽기).
+/// Call only during process startup, before the runtime is created (synchronous file read).
 pub fn load<T: DeserializeOwned>(path: &Path) -> Result<T, ConfigError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigError::Read {
         path: path.to_owned(),
@@ -55,13 +55,13 @@ pub fn load<T: DeserializeOwned>(path: &Path) -> Result<T, ConfigError> {
     })
 }
 
-/// 로그와 `Debug` 출력에 값이 나오지 않는 비밀 문자열.
+/// A secret string whose value does not appear in logs or `Debug` output.
 ///
-/// 비밀값은 설정 파일에 두지 않고 환경 변수에서만 읽는다.
+/// Secrets are not kept in config files; they are read only from environment variables.
 pub struct Secret(String);
 
 impl Secret {
-    /// 환경 변수 `name`에서 비밀값을 읽는다.
+    /// Reads a secret from the environment variable `name`.
     pub fn from_env(name: &str) -> Result<Self, ConfigError> {
         match std::env::var(name) {
             Ok(value) => Ok(Self(value)),
@@ -74,7 +74,7 @@ impl Secret {
         }
     }
 
-    /// 실제 값을 꺼낸다. 접속할 때처럼 꼭 필요한 곳에서만 쓴다.
+    /// Returns the actual value. Use only where it is strictly needed, such as when connecting.
     pub fn expose(&self) -> &str {
         &self.0
     }
