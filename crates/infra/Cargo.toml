@@ -9,6 +9,7 @@ axum = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "net", "rt", "signal", "time"] }
 tokio-util = { workspace = true }

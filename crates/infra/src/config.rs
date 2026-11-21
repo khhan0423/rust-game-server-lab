@@ -102,8 +102,9 @@ mod tests {
     }
 
     fn write_temp(name: &str, text: &str) -> PathBuf {
-        let path =
-            std::env::temp_dir().join(format!("infra-config-{}-{name}.toml", std::process::id()));
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(format!("infra-config-{}-{name}.toml", std::process::id()));
         std::fs::write(&path, text).unwrap();
         path
     }

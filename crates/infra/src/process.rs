@@ -2,7 +2,6 @@
 
 use std::io::Write;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use metrics_exporter_prometheus::{BuildError, PrometheusBuilder};
@@ -11,7 +10,7 @@ use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 use crate::admin::{AdminListener, Readiness};
-use crate::logging::{self, LogError, LogLevel, WorkerGuard};
+use crate::logging::{self, LogConfig, LogError, WorkerGuard};
 
 /// Settings that every server process keeps in the `[process]` table of its config file.
 #[derive(Debug, Deserialize)]
@@ -19,10 +18,9 @@ use crate::logging::{self, LogError, LogLevel, WorkerGuard};
 pub struct ProcessConfig {
     /// Admin port address. Use only private network addresses.
     pub admin_addr: SocketAddr,
-    /// Operations log directory.
-    pub log_dir: PathBuf,
-    /// Operations log level.
-    pub log_level: LogLevel,
+    /// Process identity and operations log settings.
+    #[serde(flatten)]
+    pub log: LogConfig,
 }
 
 /// Why the common process part failed.
@@ -74,7 +72,7 @@ pub struct Process {
 impl Process {
     /// Turns on logging and metrics and opens the admin port. At this point only `/health/live` returns 200.
     pub async fn start(config: &ProcessConfig) -> Result<Self, ProcessError> {
-        let log = logging::init(&config.log_dir, config.log_level)?;
+        let log = logging::init(&config.log)?;
         let metrics = PrometheusBuilder::new().install_recorder()?;
         let listener = AdminListener::bind(config.admin_addr)
             .await
