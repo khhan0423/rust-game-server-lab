@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block title %}Account detail{% endblock %}
+{% block content %}
+<p class="kicker">Publisher / <a href="/accounts">Accounts</a></p>
+<h1>Account detail</h1>
+<div class="panel">
+  <dl><dt>Account ID</dt><dd><code>{{ detail.account.id.0 }}</code></dd>
+  <dt>Status</dt><dd><span class="badge" data-state="{{ detail.account.status.as_str() }}">{{ detail.account.status.as_str() }}</span></dd>
+  <dt>Created (UTC)</dt><dd><time>{{ detail.account.created_at }}</time></dd></dl>
+  {% if let Some((status, label)) = action %}
+  <form class="status" method="post" action="/accounts/{{ detail.account.id.0 }}">
+    <input type="hidden" name="csrf" value="{{ token }}">
+    <input type="hidden" name="status" value="{{ status }}">
+    <label for="reason">Reason</label>
+    <textarea id="reason" name="reason" rows="2" maxlength="1000" required></textarea>
+    <button>{{ label }}</button>
+  </form>
+  {% endif %}
+</div>
+<h2>Login methods</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Provider</th><th>Subject</th></tr></thead>
+  <tbody>{% for method in detail.identities %}<tr><td>{{ method.provider }}</td><td><code>{{ method.subject }}</code></td></tr>
+  {% else %}<tr><td colspan="2">No login methods.</td></tr>{% endfor %}</tbody>
+</table></div>
+<h2>Game memberships</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Game</th><th>Status</th><th>Joined (UTC)</th></tr></thead>
+  <tbody>{% for membership in detail.memberships %}<tr><td>{{ membership.game_id }}</td><td>{{ membership.status }}</td><td><time>{{ membership.joined_at }}</time></td></tr>
+  {% else %}<tr><td colspan="3">No game memberships.</td></tr>{% endfor %}</tbody>
+</table></div>
+<h2>Recent entry tickets</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Game</th><th>Expires (UTC)</th><th>Consumed</th></tr></thead>
+  <tbody>{% for ticket in detail.tickets %}<tr><td>{{ ticket.game_id }}</td><td><time>{{ ticket.expires_at }}</time></td><td>{% if ticket.consumed %}Yes{% else %}No{% endif %}</td></tr>
+  {% else %}<tr><td colspan="3">No entry tickets.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

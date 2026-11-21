@@ -1,0 +1,17 @@
+<div class="table-wrap" hx-get="/servers/table" hx-trigger="every 5s" hx-swap="outerHTML">
+<table>
+  <thead><tr><th>Server</th><th>Admin address</th><th>Health</th><th>Readiness</th><th>Metrics</th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr data-server="{{ row.name }}" data-health="{{ row.liveness }}">
+      <th scope="row">{{ row.name }}</th><td><code>{{ row.address }}</code></td>
+      <td><span class="badge" data-state="{{ row.liveness }}">{{ row.liveness }}</span></td>
+      <td>{{ row.readiness }}</td>
+      <td>{% for (name, value) in row.metrics %}<div><code>{{ name }}</code> {{ value }}</div>{% else %}<span class="muted">Unavailable</span>{% endfor %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No servers configured.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

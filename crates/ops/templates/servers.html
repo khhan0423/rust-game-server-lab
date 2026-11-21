@@ -1,0 +1,8 @@
+{% extends "layout.html" %}
+{% block title %}Servers{% endblock %}
+{% block content %}
+<p class="kicker">Game</p>
+<h1>Servers</h1>
+<p class="lead">Health and metrics from each service. Updates every five seconds.</p>
+{% include "server_table.html" %}
+{% endblock %}

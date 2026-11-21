@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false}'>
+  <title>{% block title %}Operations{% endblock %} | Operations</title>
+  <link rel="stylesheet" href="/static/ops.css">
+  <script defer src="/static/htmx.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="shell top-inner">
+    <a class="brand" href="/servers">Operations</a>
+    <nav aria-label="Main navigation">
+      <div><span>Game</span><a href="/servers">Servers</a></div>
+      <div><span>Publisher</span><a href="/accounts">Accounts</a><a href="/audit">Audit</a></div>
+    </nav>
+    <div class="operator"><span>Development</span>{{ operator }}</div>
+  </div>
+</header>
+<main class="shell">{% block content %}{% endblock %}</main>
+</body>
+</html>
