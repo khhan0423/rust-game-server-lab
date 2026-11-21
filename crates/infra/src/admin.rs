@@ -4,12 +4,14 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::http::{Exposure, HttpConfig, HttpListener};
+use crate::config::ConfigError;
+use crate::hex::Hex;
+use crate::http::{Exposure, HttpConfig, HttpListener, api::ApiKey};
 use crate::shutdown::Shutdown;
 use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use metrics_exporter_prometheus::PrometheusHandle;
 
 /// Liveness probe path.
@@ -18,6 +20,51 @@ pub const LIVE: &str = "/health/live";
 pub const READY: &str = "/health/ready";
 /// Prometheus scrape path.
 pub const METRICS: &str = "/metrics";
+
+/// Supervisor-only graceful shutdown route.
+pub const STOP: &str = "/admin/shutdown";
+/// Header carrying the credential for [`STOP`].
+pub const STOP_HEADER: &str = "x-admin-stop-token";
+/// Process environment variable that enables [`STOP`].
+pub const STOP_ENV: &str = "ADMIN_STOP_TOKEN";
+
+/// Credential issued by the parent for one child process.
+#[derive(Debug)]
+pub struct StopToken {
+    key: ApiKey,
+}
+
+impl StopToken {
+    /// Generates a new independent credential using the operating system.
+    pub fn generate() -> std::io::Result<Self> {
+        let text = Hex::encode(&Hex::random::<32>().map_err(std::io::Error::other)?);
+        let key = ApiKey::parse(STOP_HEADER, &text)
+            .ok_or_else(|| std::io::Error::other("cannot encode shutdown credential"))?;
+        Ok(Self { key })
+    }
+
+    /// Supplies the credential through the child's environment.
+    pub fn env_value(&self) -> &[u8] {
+        self.key.bytes()
+    }
+
+    /// Asks the child to begin graceful shutdown via its announced admin address.
+    pub async fn request(
+        &self,
+        client: &reqwest::Client,
+        addr: SocketAddr,
+    ) -> Result<(), reqwest::Error> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        self.key.insert(&mut headers);
+        client
+            .post(format!("http://{addr}{STOP}"))
+            .headers(headers)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+}
 
 /// Gauge for the readiness state published by the process.
 pub const SERVER_READY: &str = "server_ready";
@@ -57,6 +104,7 @@ struct AdminState {
 #[derive(Debug)]
 pub struct AdminListener {
     listener: HttpListener,
+    stop_key: Option<ApiKey>,
 }
 
 impl AdminListener {
@@ -64,7 +112,19 @@ impl AdminListener {
     pub async fn bind(addr: SocketAddr) -> std::io::Result<Self> {
         let listener =
             HttpListener::bind("admin", &HttpConfig::new(addr), Exposure::Private).await?;
-        Ok(Self { listener })
+        Ok(Self {
+            listener,
+            stop_key: None,
+        })
+    }
+
+    pub(crate) fn enable_stop_from_env(&mut self) -> Result<(), ConfigError> {
+        match ApiKey::from_env(STOP_HEADER, STOP_ENV) {
+            Ok(key) => self.stop_key = Some(key),
+            Err(ConfigError::MissingEnv { .. }) => (),
+            Err(error) => return Err(error),
+        }
+        Ok(())
     }
 
     /// The address actually bound.
@@ -79,11 +139,23 @@ impl AdminListener {
         metrics: PrometheusHandle,
         shutdown: Shutdown,
     ) -> std::io::Result<()> {
-        let app = Router::new()
+        let mut app = Router::new()
             .route(LIVE, get(live))
             .route(READY, get(ready))
             .route(METRICS, get(render_metrics))
             .with_state(AdminState { readiness, metrics });
+        if let Some(key) = self.stop_key {
+            let stop = shutdown.clone();
+            let key = Arc::new(key);
+            app = app.route(
+                STOP,
+                post(move |headers: axum::http::HeaderMap| async move {
+                    key.verify(&headers)?;
+                    stop.cancel();
+                    Ok::<_, crate::http::api::ApiError>(StatusCode::NO_CONTENT)
+                }),
+            );
+        }
         self.listener.serve(app, shutdown).await
     }
 }

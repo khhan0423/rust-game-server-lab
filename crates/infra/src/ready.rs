@@ -3,7 +3,7 @@
 use std::{fmt, io, net::SocketAddr, str::FromStr};
 
 /// Bound listener addresses in announcement order, including the admin port.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ReadyLine(Vec<(String, SocketAddr)>);
 
 impl ReadyLine {
@@ -35,6 +35,11 @@ impl ReadyLine {
         self.0
             .iter()
             .find_map(|(key, addr)| (key == name).then_some(*addr))
+    }
+
+    /// Visits the named listeners in their announcement order.
+    pub fn listeners(&self) -> impl Iterator<Item = (&str, SocketAddr)> {
+        self.0.iter().map(|(name, addr)| (name.as_str(), *addr))
     }
 }
 

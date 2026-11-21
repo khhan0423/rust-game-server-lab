@@ -24,6 +24,10 @@ impl Shutdown {
         self.0.cancelled().await;
     }
 
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.0.is_cancelled()
+    }
+
     /// Waits for Ctrl+C or, on Unix, SIGTERM from the process supervisor.
     pub async fn signal() -> io::Result<()> {
         #[cfg(unix)]

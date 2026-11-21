@@ -40,6 +40,9 @@ impl ProcessConfig {
 /// Why the common process part failed.
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessError {
+    /// The optional admin shutdown credential is invalid.
+    #[error("cannot configure admin shutdown")]
+    StopCredential(#[from] crate::config::ConfigError),
     /// Logging could not be started.
     #[error("cannot start logging")]
     Log(#[from] LogError),
@@ -90,12 +93,13 @@ impl Process {
         tasks: &mut JoinSet<Result<(), ProcessError>>,
     ) -> Result<Self, ProcessError> {
         let metrics = PrometheusBuilder::new().install_recorder()?;
-        let listener = AdminListener::bind(config.admin_addr)
+        let mut listener = AdminListener::bind(config.admin_addr)
             .await
             .map_err(|source| ProcessError::AdminBind {
                 addr: config.admin_addr,
                 source,
             })?;
+        listener.enable_stop_from_env()?;
         let admin_addr = listener.local_addr();
         let readiness = Readiness::default();
         let shutdown = Shutdown::default();

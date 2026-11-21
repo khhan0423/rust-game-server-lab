@@ -5,7 +5,6 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 
-const FONT_PATH: &str = r"C:\Windows\Fonts\malgun.ttf";
 const FONT_NAME: &str = "korean-fallback";
 
 /// Font bytes loaded before the window event loop begins.
@@ -15,13 +14,7 @@ pub(super) struct Fallback(Option<Vec<u8>>);
 impl Fallback {
     /// Reads the optional font, logging a warning if it cannot be opened.
     pub(super) fn load() -> Self {
-        match std::fs::read(FONT_PATH) {
-            Ok(bytes) => Self(Some(bytes)),
-            Err(error) => {
-                tracing::warn!(path = FONT_PATH, %error, "Korean font unavailable");
-                Self(None)
-            }
-        }
+        Self(infra::fonts::korean_fallback())
     }
 }
 

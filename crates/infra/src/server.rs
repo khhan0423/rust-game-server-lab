@@ -52,10 +52,16 @@ impl Server {
         self.process.mark_ready_with(&self.addresses)?;
         tracing::info!(listeners = ?self.addresses, "server ready");
         tokio::select! {
+            biased;
             signal = Shutdown::signal() => signal.map_err(ProcessError::Signal),
+            () = self.shutdown().wait() => Ok(()),
             Some(task) = self.tasks.join_next() => {
                 task_result(task)?;
-                Err(ProcessError::Service { name: "supervised", source: io::Error::other("service stopped before shutdown") })
+                if self.shutdown().is_cancelled() {
+                    Ok(())
+                } else {
+                    Err(ProcessError::Service { name: "supervised", source: io::Error::other("service stopped before shutdown") })
+                }
             }
         }
     }

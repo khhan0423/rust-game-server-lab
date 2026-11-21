@@ -107,14 +107,17 @@ impl ApiKey {
     /// Loads a nonempty HTTP header value and marks it sensitive.
     pub fn from_env(name: &'static str, env: &str) -> Result<Self, ConfigError> {
         let key = Secret::from_env(env)?;
-        let mut value = HeaderValue::from_str(key.expose())
+        Self::parse(name, key.expose()).ok_or_else(|| ConfigError::InvalidHeader {
+            name: env.to_owned(),
+        })
+    }
+
+    pub(crate) fn parse(name: &'static str, value: &str) -> Option<Self> {
+        let mut value = HeaderValue::from_str(value)
             .ok()
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| ConfigError::InvalidHeader {
-                name: env.to_owned(),
-            })?;
+            .filter(|v| !v.is_empty())?;
         value.set_sensitive(true);
-        Ok(Self {
+        Some(Self {
             name: HeaderName::from_static(name),
             value,
         })
@@ -123,6 +126,10 @@ impl ApiKey {
     /// Adds this credential to an outgoing request's headers.
     pub fn insert(&self, headers: &mut HeaderMap) {
         headers.insert(self.name.clone(), self.value.clone());
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8] {
+        self.value.as_bytes()
     }
 
     /// Accepts exactly one matching credential.
