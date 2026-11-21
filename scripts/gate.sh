@@ -15,6 +15,6 @@ export SQLX_OFFLINE=true
 (cd crates/ops/assets && grep -v '^#' htmx.sha256 | sha256sum --check --quiet -)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-# The operations integration test drives both binaries; Cargo exposes only its own package's binary.
-cargo build --bin publisher
+# Cross-package integration tests need the publisher and gateway executables.
+cargo build --bin publisher --bin gateway
 cargo test --workspace

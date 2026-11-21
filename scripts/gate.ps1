@@ -20,8 +20,8 @@ cargo fmt --all -- --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo clippy --workspace --all-targets -- -D warnings
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-# The operations integration test drives both binaries; Cargo exposes only its own package's binary.
-cargo build --bin publisher
+# Cross-package integration tests need the publisher and gateway executables.
+cargo build --bin publisher --bin gateway
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo test --workspace
 exit $LASTEXITCODE
