@@ -64,43 +64,44 @@ Server/
 개발 PC에서 서버군 전체를 명령 하나로 띄우고 내린다. 운영 환경은 systemd가 맡으므로(08 문서 M8) 런처는 **개발과 테스트용**이다.
 
 ```
-launcher up              topology.toml에 적힌 서버들을 순서대로 띄움
-                         (Valkey/PostgreSQL 확인 → Entry → Game 서버들 → 전투 서버 → Gateway)
-                         각 서버가 표준 출력에 "ready admin=<주소>" 한 줄을 쓸 때까지 기다린 뒤 다음 서버
-launcher down            역순으로 종료 신호 → 정상 종료 대기 → 시간 초과면 강제 종료
-launcher restart game-2  서버 하나만 재시작 (장애 시험)
-launcher kill game-2     서버 하나를 강제 종료 (장애 시험: 정상 종료 없이)
-launcher status          각 서버의 상태, 포트, PID
-launcher logs game-1     그 서버의 로그 파일을 이어서 보기
+launcher                   서버 제어, 상태, 최근 출력을 보는 창 열기
+launcher --headless up     의존 순서대로 띄우고 Ctrl+C에서 역순으로 종료
+launcher --headless check  의존 순서대로 띄운 뒤 역순으로 종료하고 결과 출력
 ```
+
+서버를 띄울 때는 자식 프로세스의 표준 출력에 `ready admin=<주소> ...`가 나온 뒤 다음 서버를 띄운다. 정상 종료는 자식마다 생성한 인증값으로 관리 포트에 요청하고, 기한이 지나면 강제로 종료한다. 창에서는 서버 하나를 재시작하거나 강제로 종료할 수 있고, 운영 도구가 알린 주소를 브라우저에서 열 수 있다.
 
 ### 3.2 토폴로지 파일 (예)
 
+기본 파일은 `dev/config/launcher.toml`이다. `--topology <파일>`로 다른 파일을 선택할 수 있다. 경로는 실행 디렉터리 기준이며 실행 스크립트는 작업 디렉터리를 워크스페이스 루트로 설정한다.
+
 ```toml
-# topology.toml (개발용, 비밀값 없음)
-[[server]]
-name = "entry"
-role = "entry"
-port = 7000
+bin_dir = "target/debug"
+env_file = ".env"
+ready_timeout_seconds = 60
+stop_timeout_seconds = 15
 
-[[server]]
-name = "game-1"
-role = "game"
-shard = 1
+[process]
+name = "launcher"
+environment = "development"
+log_level = "info"
 
-[[server]]
-name = "game-2"
-role = "game"
-shard = 2
+[[services]]
+name = "publisher"
+binary = "publisher"
+config = "dev/config/publisher.toml"
+args = ["run"]
 
-[[server]]
-name = "gateway"
-role = "gateway"
-port = 7100
+[[services]]
+name = "server"
+binary = "server"
+config = "dev/config/server.toml"
+args = ["run"]
+depends_on = ["publisher"]
 ```
 
 - DB 접속 정보 같은 비밀값은 이 파일에 넣지 않는다. 환경 변수로 넘긴다(08 문서 8장).
-- 샤드 수, 서버 수를 바꿔 가며 띄울 수 있어서 "샤드 3개, 유저 3명" 같은 시나리오를 그대로 재현할 수 있다.
+- 기본 설정은 `gateway`와 `ops`도 띄우며 `ops`가 마지막이다. 이름은 중복될 수 없고, 의존 대상은 모두 존재해야 하며 순환할 수 없다.
 
 ### 3.3 서버는 각자 뜬다. 런처는 돕기만 한다 (소유자 결정, 2026-11-20)
 
@@ -139,14 +140,14 @@ port = 7100
 1. 봇 3개가 처음 접속 → 서로 다른 샤드에 배정되는지 확인
 2. 각자 아이템 구매 → 각자의 Game DB에 저장되는지 확인
 3. 봇1이 봇2에게 우편 → 봇2의 우편함에 한 번만 들어오는지 확인 (메시지를 일부러 두 번 보내 멱등성도 확인)
-4. 봇2의 Game 서버를 `launcher kill` → 재시작 후 우편이 사라지지 않았는지 확인
+4. 봇2의 Game 서버에서 **Kill**을 누른다 → 재시작 후 우편이 사라지지 않았는지 확인
 
 ## 5. 각 단계의 완료 기준
 
 | 단계 | 완료 기준 |
 |---|---|
 | ① 뼈대와 유닛 테스트 | **완료 (2026-11-19).** 크레이트 4개(`infra`, `db`, `server`, `gateway`), 품질 게이트 통과, 실제 PostgreSQL에서 DB 테스트와 서버 기동 테스트 통과 |
-| ② 서버 런처 | `launcher up/down/status/restart/kill/logs`가 동작. 서버가 아직 껍데기여도 헬스 체크까지 확인 |
+| ② 서버 런처 | 창에 서버 상태와 출력이 표시되며 기동, 종료, 재시작, 강제 종료를 할 수 있다. `launcher --headless check`로 준비와 정상 종료를 확인한다. |
 | ③ 테스트 클라이언트 | 대화형으로 접속과 인증, 시나리오 모드로 봇 N개 접속과 지연 분포 출력 |
 
 ## 6. 결정할 것

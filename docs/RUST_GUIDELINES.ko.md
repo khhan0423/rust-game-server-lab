@@ -66,7 +66,7 @@ Server/
 │  ├─ server/            # 바이너리. Game 서버, 전투 서버, 클러스터 서비스를 역할(role)로 띄움. tokio, 조립(wiring)
 │  ├─ bot/               # 창 없는 테스트/부하용 봇 바이너리. 세션 계약의 참조 구현
 │  ├─ client/            # GUI 테스트 클라이언트 (Bevy + bevy_egui, 설계 10)
-│  └─ launcher/          # GUI 서버 런처 (eframe, 설계 10). 게임 크레이트에 의존하지 않음
+│  └─ launcher/          # GUI와 헤드리스 모드가 있는 로컬 서버 관리 도구 (설계 10). 워크스페이스에서는 infra에만 의존
 └─ migrations/           # DB 마이그레이션 SQL
 ```
 
@@ -80,7 +80,7 @@ server ──> game ──> protocol
 gateway ──> net         │
 bot ───────> net ───────┘
 client ────> net        (protocol은 net을 통해)
-launcher                (게임 크레이트에 의존하지 않음)
+launcher ──> infra      (로컬 프로세스 관리)
 publisher ──> db        (Login DB 모듈만. game, net에 의존하지 않음)
 바이너리 크레이트(server, gateway, bot, client, launcher) ──> infra   (infra는 아무것에도 의존하지 않음)
 ```
@@ -396,7 +396,7 @@ C++로 치면 `infra`는 로거 클래스가 들어 있는 공용 정적 라이�
 | 개발용 런타임 관찰 | `console-subscriber` (tokio-console). **개발 빌드의 기능 플래그로만 켜고 release에는 넣지 않는다** — 2026-11-19 승인 |
 | 지연 시간 분포 측정 (부하 테스트) | `hdrhistogram` (`bot` 크레이트 등 측정 도구에서만) — 2026-11-19 승인 |
 
-| GUI, 그래픽 (도구 전용) | `bevy` + `bevy_egui` (`client` 크레이트), `eframe`/`egui` (`launcher` 크레이트). **서버 바이너리에는 넣지 않는다** — 2026-11-19 승인 |
+| GUI, 그래픽 (도구 전용) | `bevy` + `bevy_egui` (`client` 크레이트), `eframe` (`launcher` 크레이트, 기본 글꼴·wgpu·X11). **서버 바이너리에는 넣지 않는다** — 2026-11-19 승인 |
 | 프로토콜 코드 생성 (빌드 전용) | `prost-build` — 2026-11-19 승인 |
 | 토큰 서명 | `ed25519-dalek` (Entry가 서명, Gateway는 공개 키로 확인) — 2026-11-19 승인 |
 | 난수 (세션 키 등) | `rand` — 2026-11-19 승인 |

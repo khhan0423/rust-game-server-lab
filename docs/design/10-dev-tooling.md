@@ -64,43 +64,44 @@ Once the skeleton exists, the three quality gate commands run for the first time
 Start or stop the entire server cluster on a development PC with a single command. Since systemd handles production (Document 08, M8), the launcher is **for development and testing**.
 
 ```
-launcher up              Start the servers listed in topology.toml in order
-                         (check Valkey/PostgreSQL → Entry → Game servers → combat server → Gateway)
-                         Wait for each server to write one line, "ready admin=<address>", to standard output before starting the next server
-launcher down            Send shutdown signals in reverse order → wait for graceful shutdown → kill on timeout
-launcher restart game-2  Restart only one server (failure test)
-launcher kill game-2     Kill one server (failure test: without graceful shutdown)
-launcher status          Show status, port, and PID for each server
-launcher logs game-1     Follow that server's log file
+launcher                   Open the window with service controls, status, and recent output
+launcher --headless up     Start in dependency order and stop in reverse order on Ctrl+C
+launcher --headless check  Start in dependency order, then stop in reverse order and report the result
 ```
+
+Each start waits for `ready admin=<address> ...` on the child's stdout before starting the next service. Graceful stop asks the admin port to shut down using a credential generated for the child; the launcher kills the child if the deadline expires. The window can also restart or kill one service and open the operations tool at the address it announced.
 
 ### 3.2 Topology File (Example)
 
+The default is `dev/config/launcher.toml`. Use `--topology <file>` to select another topology. Paths are relative to the working directory, which the run scripts set to the workspace root.
+
 ```toml
-# topology.toml (development only, no secrets)
-[[server]]
-name = "entry"
-role = "entry"
-port = 7000
+bin_dir = "target/debug"
+env_file = ".env"
+ready_timeout_seconds = 60
+stop_timeout_seconds = 15
 
-[[server]]
-name = "game-1"
-role = "game"
-shard = 1
+[process]
+name = "launcher"
+environment = "development"
+log_level = "info"
 
-[[server]]
-name = "game-2"
-role = "game"
-shard = 2
+[[services]]
+name = "publisher"
+binary = "publisher"
+config = "dev/config/publisher.toml"
+args = ["run"]
 
-[[server]]
-name = "gateway"
-role = "gateway"
-port = 7100
+[[services]]
+name = "server"
+binary = "server"
+config = "dev/config/server.toml"
+args = ["run"]
+depends_on = ["publisher"]
 ```
 
 - Don't put secrets such as DB connection details in this file. Pass them through environment variables (Document 08, Section 8).
-- Change shard and server counts at startup to reproduce scenarios such as "3 shards, 3 users" exactly.
+- The default topology also starts `gateway` and `ops`, with `ops` last. Names must be unique and dependencies must be known and acyclic.
 
 ### 3.3 Each Server Runs on Its Own; the Launcher Only Helps (owner decision, 2026-11-20)
 
@@ -139,14 +140,14 @@ Reproduce the approved shard simulation (Document 04, Section 2) as a scenario.
 1. Connect 3 bots for the first time → verify that each is assigned to a different shard.
 2. Have each bot buy an item → verify that each item is saved to its bot's Game DB.
 3. Have bot 1 send mail to bot 2 → verify that it arrives only once in bot 2's mailbox (send the message twice on purpose to check idempotency as well).
-4. Run `launcher kill` on bot 2's Game server → verify after restart that the mail is still there.
+4. Click **Kill** on bot 2's Game server → verify after restart that the mail is still there.
 
 ## 5. Completion Criteria for Each Stage
 
 | Stage | Completion Criteria |
 |---|---|
 | ① Skeleton and unit tests | **Complete (2026-11-19).** 4 crates (`infra`, `db`, `server`, `gateway`), passing quality gate, and passing DB and server startup tests with real PostgreSQL. |
-| ② Server launcher | `launcher up/down/status/restart/kill/logs` work. Check through the health check even if the servers are still only skeletons. |
+| ② Server launcher | The window shows service status and output and can start, stop, restart, and kill processes. `launcher --headless check` verifies readiness and clean shutdown. |
 | ③ Test client | Connect and authenticate in interactive mode. Connect N bots and print a latency distribution in scenario mode. |
 
 ## 6. Decisions to Make

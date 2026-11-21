@@ -17,7 +17,7 @@ The project is at the pilot stage: verifying the skeleton of the design before b
 
 What exists today is a Cargo workspace with ten crates. The game server is still a skeleton, but it already refuses to come up when the database is missing, the schema is out of date, or a secret is missing. The gateway accepts client connections, reads and writes frames, and closes connections that do not authenticate in time. It cannot let anyone in yet, because the entry server that issues login tokens does not exist. A headless bot opens thousands of connections against it for smoke and stress runs, and the gateway reports its connections and runtime threads as metrics. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. The operations tool is a web page that shows which servers are up, lists accounts, sanctions or restores an account, and keeps a record of every operator action. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
 
-The message definitions and the frame codec are written and tested, but not yet wired into the servers. Next up are the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. The launcher, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
+The message definitions and the frame codec are written and tested, but not yet wired into the servers. Next up are the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. Battle servers, zones, and actual content follow the plan.
 
 ## How it is put together
 
@@ -66,6 +66,7 @@ crates/
   ops/        operations tool, a web server (server status, connections, accounts, audit)
   bot/        headless bot that opens many connections (smoke and stress runs)
   client/     GUI test client (Bevy and egui)
+  launcher/   local server supervisor with a GUI and headless modes
 migrations/   database migrations
 dev/          PostgreSQL and Valkey for development
 scripts/      quality gate scripts
@@ -76,7 +77,7 @@ docs/
   plan/                execution plan, pilot stages, test scenarios
 ```
 
-The `game` and `launcher` crates are planned.
+The `game` crate is planned.
 
 ## Where things are
 
@@ -114,6 +115,14 @@ cargo run -p client -- --profile alice
 ```
 
 In the client window, press "Create guest account" and then "Log in". Each profile keeps its own guest account under `client-data/`, so several clients can run side by side.
+
+With the development database running and migrated, start the whole server set from the launcher. The window has a **Start all** button. Headless mode can keep the set running until Ctrl+C or check that it starts and stops cleanly. PowerShell users can run `scripts/run-launcher.ps1` with the same arguments.
+
+```sh
+bash scripts/run-launcher.sh
+bash scripts/run-launcher.sh --headless up
+bash scripts/run-launcher.sh --headless check
+```
 
 A quick check that the connection path still works, and a heavier one:
 

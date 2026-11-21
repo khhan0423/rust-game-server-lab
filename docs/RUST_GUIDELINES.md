@@ -66,7 +66,7 @@ Server/
 │  ├─ server/            # Binary. Runs the Game server, battle server, cluster services as roles. tokio, wiring
 │  ├─ bot/               # Headless test/load bot binary. Reference implementation of the session contract
 │  ├─ client/            # GUI test client (Bevy + bevy_egui, design 10)
-│  └─ launcher/          # GUI server launcher (eframe, design 10). Does not depend on game crates
+│  └─ launcher/          # Local server supervisor with a GUI and headless modes (design 10). Depends only on infra in this workspace
 └─ migrations/           # DB migration SQL
 ```
 
@@ -80,7 +80,7 @@ server ──> game ──> protocol
 gateway ──> net         │
 bot ───────> net ───────┘
 client ────> net        (protocol via net)
-launcher                (does not depend on game crates)
+launcher ──> infra      (local process supervision)
 publisher ──> db        (Login DB module only. Does not depend on game, net)
 binary crates (server, gateway, bot, client, launcher) ──> infra   (infra depends on nothing)
 ```
@@ -396,7 +396,7 @@ This is the default allow list. Adding a crate not here requires leaving a reaso
 | Dev runtime observation | `console-subscriber` (tokio-console). **Enable only as a feature flag on dev builds; do not ship in release**. Approved 2026-11-19 |
 | Latency distribution measurement (load testing) | `hdrhistogram` (only in measurement tools such as the `bot` crate). Approved 2026-11-19 |
 
-| GUI, graphics (tools only) | `bevy` + `bevy_egui` (`client` crate), `eframe`/`egui` (`launcher` crate). **Do not put in server binaries**. Approved 2026-11-19 |
+| GUI, graphics (tools only) | `bevy` + `bevy_egui` (`client` crate), `eframe` (`launcher` crate; default fonts, wgpu, X11). **Do not put in server binaries**. Approved 2026-11-19 |
 | Protocol code generation (build only) | `prost-build`. Approved 2026-11-19 |
 | Token signing | `ed25519-dalek` (Entry signs, Gateway verifies with the public key). Approved 2026-11-19 |
 | Random numbers (session keys etc.) | `rand`. Approved 2026-11-19 |
