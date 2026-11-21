@@ -26,7 +26,7 @@ fn spawn(name: &str, addr: SocketAddr, max: usize, timeout: u64) -> Child {
     std::fs::create_dir_all(&dir).unwrap();
     let config = dir.join("gateway.toml");
     let text = format!(
-        "[process]\nadmin_addr = '127.0.0.1:0'\nlog_dir = '{}'\nlog_level = 'info'\n\
+        "[process]\nname = 'gateway'\nenvironment = 'development'\nadmin_addr = '127.0.0.1:0'\nlog_root = '{}'\nlog_level = 'info'\n\
          [client]\nlisten_addr = '{addr}'\nmax_connections = {max}\nauth_timeout_ms = {timeout}\n\
          write_queue_capacity = 1\nlog_connections = true\n",
         dir.join("logs").display()

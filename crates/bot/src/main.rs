@@ -3,19 +3,21 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::Parser;
+use infra::logging::{self, ToolConfig};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Parser)]
 struct Cli {
     #[command(flatten)]
     run: bot::RunConfig,
-    #[arg(long, default_value = "logs/bot")]
-    log_dir: PathBuf,
+    #[arg(long, default_value = "dev/config/bot.toml")]
+    config: PathBuf,
 }
 
 fn main() -> anyhow::Result<std::process::ExitCode> {
     let cli = Cli::parse();
-    let _log = infra::logging::init(&cli.log_dir, infra::logging::LogLevel::Info)?;
+    let config: ToolConfig = infra::config::load(&cli.config)?;
+    let _log = logging::init(&config.process)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

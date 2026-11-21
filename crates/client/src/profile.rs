@@ -122,6 +122,9 @@ pub(super) fn delete(path: &Path) -> io::Result<()> {
 /// Saves the guest credentials on the worker after account creation.
 pub(super) async fn save(path: &Path, credentials: &Credentials) -> Result<(), ProfileError> {
     let serialized = toml::to_string(credentials).map_err(|_| ProfileError::Encode)?;
+    if let Some(dir) = path.parent() {
+        tokio::fs::create_dir_all(dir).await?;
+    }
     tokio::fs::write(path, serialized).await?;
     Ok(())
 }
@@ -144,8 +147,10 @@ pub(super) mod tests {
 
     impl TempProfile {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("client-profile-{}", Uuid::now_v7()));
-            std::fs::create_dir(&dir).expect("create isolated profile directory");
+            let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/tmp")
+                .join(format!("client-profile-{}", Uuid::now_v7()));
+            std::fs::create_dir_all(&dir).expect("create isolated profile directory");
             Self(dir)
         }
     }

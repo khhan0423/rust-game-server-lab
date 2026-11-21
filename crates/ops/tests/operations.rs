@@ -50,12 +50,12 @@ async fn publisher(dir: &Path, pool: &PgPool) -> Child {
     tokio::fs::write(
         &path,
         format!(
-            "[process]\nadmin_addr='127.0.0.1:0'\nlog_dir='{}'\nlog_level='info'\n\
+            "[process]\nname='publisher'\nenvironment='development'\nadmin_addr='127.0.0.1:0'\nlog_root='{}'\nlog_level='info'\n\
          [db]\nmax_connections=2\nacquire_timeout_ms=3000\n\
          [http]\nlisten_addr='127.0.0.1:0'\n\
          [ops_api]\nlisten_addr='127.0.0.1:0'\n\
          [games.lab]\nentry_url='http://127.0.0.1:18200'\n",
-            dir.join("publisher").display(),
+            dir.join("logs").display(),
         ),
     )
     .await
@@ -91,10 +91,10 @@ async fn gateway(dir: &Path) -> Child {
     tokio::fs::write(
         &path,
         format!(
-            "[process]\nadmin_addr='127.0.0.1:0'\nlog_dir='{}'\nlog_level='info'\n\
+            "[process]\nname='gateway'\nenvironment='development'\nadmin_addr='127.0.0.1:0'\nlog_root='{}'\nlog_level='info'\n\
          [client]\nlisten_addr='127.0.0.1:0'\nmax_connections=8\nauth_timeout_ms=1000\n\
          write_queue_capacity=256\nlog_connections=true\n",
-            dir.join("gateway").display(),
+            dir.join("logs").display(),
         ),
     )
     .await
@@ -117,10 +117,10 @@ async fn start_ops(dir: &Path, ready: (&str, &str), environment: &str) -> Child 
     let admin = address(ready.0, "admin");
     let gateway_admin = address(ready.1, "admin");
     tokio::fs::write(&path, format!(
-        "environment='{environment}'\n[process]\nadmin_addr='127.0.0.1:0'\nlog_dir='{}'\nlog_level='info'\n\
+        "[process]\nname='ops'\nenvironment='{environment}'\nadmin_addr='127.0.0.1:0'\nlog_root='{}'\nlog_level='info'\n\
          [http]\nlisten_addr='127.0.0.1:0'\n[operator]\nname='Integration Operator'\n\
          [publisher]\nops_api_url='http://{endpoint}'\n[[servers]]\nname='Publisher'\nadmin_addr='{admin}'\n\
-         [[servers]]\nname='Gateway'\nrole='gateway'\nadmin_addr='{gateway_admin}'\n", dir.join("operations").display(),
+         [[servers]]\nname='Gateway'\nrole='gateway'\nadmin_addr='{gateway_admin}'\n", dir.join("logs").display(),
     )).await.unwrap();
     Command::new(env!("CARGO_BIN_EXE_ops"))
         .arg("--config")

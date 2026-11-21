@@ -15,7 +15,7 @@ async fn both_bot_scenarios_report_the_gateway_close() {
     std::fs::write(
         &config,
         format!(
-            "[process]\nadmin_addr = '127.0.0.1:0'\nlog_dir = '{}'\nlog_level = 'info'\n\
+            "[process]\nname = 'gateway'\nenvironment = 'development'\nadmin_addr = '127.0.0.1:0'\nlog_root = '{}'\nlog_level = 'info'\n\
          [client]\nlisten_addr = '127.0.0.1:0'\nmax_connections = 8\nauth_timeout_ms = 750\n\
          write_queue_capacity = 256\nlog_connections = true\n",
             dir.join("logs").display()

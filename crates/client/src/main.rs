@@ -16,7 +16,7 @@ use bevy::prelude::{
 };
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass, EguiStartupSet};
 use clap::Parser;
-use infra::logging::{self, LogLevel};
+use infra::logging::{self, ToolConfig};
 
 use crate::profile::ProfileName;
 
@@ -26,15 +26,19 @@ struct Args {
     /// Name of the guest credential profile.
     #[arg(long, default_value = "default")]
     profile: ProfileName,
-    /// Directory for profiles and operation logs.
+    /// Directory for credential profiles.
     #[arg(long, default_value = "client-data")]
     data_dir: PathBuf,
+    /// Path to the config file (TOML).
+    #[arg(long, default_value = "dev/config/client.toml")]
+    config: PathBuf,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    let _log_guard = logging::init(&args.data_dir.join("logs"), LogLevel::Info)
-        .context("start client operation logging")?;
+    let mut config: ToolConfig = infra::config::load(&args.config)?;
+    config.process.instance = args.profile.to_string().try_into()?;
+    let _log_guard = logging::init(&config.process).context("start client operation logging")?;
     let profile_path = args.profile.path(&args.data_dir);
     let credentials = profile::load(&profile_path).context("load guest profile")?;
     let (net, worker) = net::start(profile_path.clone()).context("start publisher worker")?;

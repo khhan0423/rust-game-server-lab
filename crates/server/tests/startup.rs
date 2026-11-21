@@ -24,7 +24,7 @@ fn write_config(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).unwrap();
     let config = dir.join("server.toml");
     let contents = format!(
-        "[process]\nadmin_addr = \"127.0.0.1:0\"\nlog_dir = '{}'\nlog_level = \"info\"\n\n\
+        "[process]\nname = 'game'\nenvironment = 'development'\nadmin_addr = \"127.0.0.1:0\"\nlog_root = '{}'\nlog_level = \"info\"\n\n\
          [db]\nmax_connections = 2\nacquire_timeout_ms = 3000\n",
         dir.join("logs").display()
     );

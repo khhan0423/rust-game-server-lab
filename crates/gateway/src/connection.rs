@@ -102,23 +102,29 @@ pub(super) async fn run(
         active.0.increment(1);
         metrics::counter!("gateway_connections_accepted_total").increment(1);
         if config.log_connections {
-            tracing::info!(conn_id = peer.id.0, peer = %peer.address, "connection accepted");
+            tracing::info!("connection accepted");
         }
 
         let (read, write) = socket.into_split();
         let (sender, receiver) = mpsc::channel(config.write_queue_capacity.get());
-        let deadline = peer.accepted_at + Duration::from_millis(u64::from(config.auth_timeout_ms.get()));
+        let deadline =
+            peer.accepted_at + Duration::from_millis(u64::from(config.auth_timeout_ms.get()));
         let ((cause, frames_in), (sent, frames_out)) = tokio::join!(
             handshake(read, sender, (deadline, shutdown)),
             write_frames(write, receiver),
         );
         let cause = if sent { cause } else { CloseCause::IoError };
-        metrics::counter!("gateway_connections_closed_total", "reason" => cause.label()).increment(1);
+        metrics::counter!("gateway_connections_closed_total", "reason" => cause.label())
+            .increment(1);
         if config.log_connections {
-            // `u128` is logged as text; a `u64` keeps the field numeric in the JSON log.
-            let lifetime_ms =
-                u64::try_from(peer.accepted_at.elapsed().as_millis()).unwrap_or(u64::MAX);
-            tracing::info!(conn_id = peer.id.0, peer = %peer.address, reason = cause.label(), lifetime_ms, frames_in, frames_out, "connection closed");
+            let elapsed_ms = peer.accepted_at.elapsed().as_millis();
+            tracing::info!(
+                reason = cause.label(),
+                elapsed_ms,
+                frames_in,
+                frames_out,
+                "connection closed"
+            );
         }
         drop(active);
     }

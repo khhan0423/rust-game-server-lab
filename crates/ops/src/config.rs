@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use infra::logging::Environment;
 use infra::process::ProcessConfig;
 use serde::Deserialize;
 
@@ -10,7 +11,6 @@ use serde::Deserialize;
 pub(super) struct Config {
     pub(super) process: ProcessConfig,
     pub(super) http: Http,
-    pub(super) environment: Environment,
     pub(super) operator: Operator,
     pub(super) publisher: Publisher,
     pub(super) servers: Vec<WatchedServer>,
@@ -20,16 +20,6 @@ pub(super) struct Config {
 #[serde(deny_unknown_fields)]
 pub(super) struct Http {
     pub(super) listen_addr: SocketAddr,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(super) enum Environment {
-    Development,
-    FriendsTest,
-    Alpha,
-    Beta,
-    Live,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,7 +50,7 @@ pub(super) enum ServerRole {
 
 impl Config {
     pub(super) fn check(&self) -> anyhow::Result<()> {
-        match self.environment {
+        match self.process.log.environment {
             Environment::Development => {}
             Environment::FriendsTest
             | Environment::Alpha

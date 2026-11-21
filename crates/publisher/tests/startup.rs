@@ -27,7 +27,7 @@ async fn write_config(name: &str) -> PathBuf {
     tokio::fs::create_dir_all(&dir).await.unwrap();
     let config = dir.join("publisher.toml");
     let toml = format!(
-        "[process]\nadmin_addr = \"127.0.0.1:0\"\nlog_dir = '{}'\nlog_level = \"info\"\n\n\
+        "[process]\nname = 'publisher'\nenvironment = 'development'\nadmin_addr = \"127.0.0.1:0\"\nlog_root = '{}'\nlog_level = \"info\"\n\n\
         [db]\nmax_connections = 2\nacquire_timeout_ms = 3000\n\n\
         [http]\nlisten_addr = \"127.0.0.1:0\"\n\n\
         [ops_api]\nlisten_addr = \"127.0.0.1:0\"\n\n\
