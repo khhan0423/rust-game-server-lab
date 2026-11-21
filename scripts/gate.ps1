@@ -16,8 +16,8 @@ cargo fmt --all -- --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo clippy --workspace --all-targets -- -D warnings
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-# Cross-package integration tests need the publisher and gateway executables.
-cargo build --bin publisher --bin gateway
+# Process tests need the publisher, gateway, and launcher executables.
+cargo build --bin publisher --bin gateway --bin launcher
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo test --workspace
 exit $LASTEXITCODE

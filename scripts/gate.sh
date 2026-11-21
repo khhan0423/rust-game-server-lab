@@ -16,6 +16,6 @@ if ! (cd crates/ops/assets && grep -v '^#' htmx.sha256 | sha256sum --check --qui
 fi
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-# Cross-package integration tests need the publisher and gateway executables.
-cargo build --bin publisher --bin gateway
+# Process tests need the publisher, gateway, and launcher executables.
+cargo build --bin publisher --bin gateway --bin launcher
 cargo test --workspace

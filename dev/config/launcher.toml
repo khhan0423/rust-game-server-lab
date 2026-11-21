@@ -1,0 +1,35 @@
+ready_timeout_seconds = 60
+stop_timeout_seconds = 15
+
+[process]
+name = "launcher"
+environment = "development"
+log_level = "info"
+worker_threads = 2
+
+[[services]]
+name = "publisher"
+binary = "publisher"
+config = "dev/config/publisher.toml"
+args = ["run"]
+
+[[services]]
+name = "server"
+binary = "server"
+config = "dev/config/server.toml"
+args = ["run"]
+depends_on = ["publisher"]
+
+[[services]]
+name = "gateway"
+binary = "gateway"
+config = "dev/config/gateway.toml"
+args = ["run"]
+depends_on = ["server"]
+
+[[services]]
+name = "ops"
+binary = "ops"
+config = "dev/config/ops.toml"
+args = ["run"]
+depends_on = ["gateway"]
