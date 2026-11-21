@@ -1,0 +1,31 @@
+environment = "development"
+
+[process]
+admin_addr = "127.0.0.1:18390"
+log_dir = "logs/ops"
+log_level = "info"
+
+[http]
+listen_addr = "127.0.0.1:18300"
+
+[operator]
+name = "Development Operator"
+
+[publisher]
+ops_api_url = "http://127.0.0.1:18110"
+
+[[servers]]
+name = "Publisher"
+admin_addr = "127.0.0.1:18190"
+
+[[servers]]
+name = "Server"
+admin_addr = "127.0.0.1:18290"
+
+[[servers]]
+name = "Gateway"
+admin_addr = "127.0.0.1:18490"
+
+[[servers]]
+name = "Operations"
+admin_addr = "127.0.0.1:18390"

@@ -1,0 +1,8 @@
+[process]
+admin_addr = "127.0.0.1:18290"
+log_dir = "logs/server"
+log_level = "info"
+
+[db]
+max_connections = 4
+acquire_timeout_ms = 3000

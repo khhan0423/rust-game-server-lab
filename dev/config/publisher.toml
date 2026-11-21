@@ -12,6 +12,9 @@ acquire_timeout_ms = 3000
 [http]
 listen_addr = "127.0.0.1:18100"
 
+[ops_api]
+listen_addr = "127.0.0.1:18110"
+
 [tickets]
 ttl_secs = 60
 

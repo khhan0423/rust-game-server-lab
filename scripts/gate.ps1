@@ -12,9 +12,16 @@ if (Test-Path .env) {
     }
 }
 $env:SQLX_OFFLINE = "true"
+# The vendored htmx file must match its recorded hash.
+$expected = ((Get-Content crates/ops/assets/htmx.sha256 | Where-Object { $_ -notmatch '^#' -and $_.Trim() }) -split '\s+')[0]
+$actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes((Resolve-Path crates/ops/assets/htmx.min.js)))).Replace('-', '').ToLower()
+if ($actual -ne $expected) { [Console]::Error.WriteLine('crates/ops/assets/htmx.min.js does not match htmx.sha256'); exit 1 }
 cargo fmt --all -- --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo clippy --workspace --all-targets -- -D warnings
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+# The operations integration test drives both binaries; Cargo exposes only its own package's binary.
+cargo build --bin publisher
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo test --workspace
 exit $LASTEXITCODE

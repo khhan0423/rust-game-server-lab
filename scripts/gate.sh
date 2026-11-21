@@ -11,6 +11,10 @@ preset_database_url="${DATABASE_URL:-}"
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 if [ -n "$preset_database_url" ]; then export DATABASE_URL="$preset_database_url"; fi
 export SQLX_OFFLINE=true
+# The vendored htmx file must match its recorded hash.
+(cd crates/ops/assets && grep -v '^#' htmx.sha256 | sha256sum --check --quiet -)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
+# The operations integration test drives both binaries; Cargo exposes only its own package's binary.
+cargo build --bin publisher
 cargo test --workspace
