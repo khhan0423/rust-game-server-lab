@@ -4,9 +4,6 @@ cd "$(dirname "$0")/.."
 . scripts/lib.sh
 mode=$1
 shift
-if [[ $(uname -s) == MINGW* || $(uname -s) == MSYS* ]]; then
-    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -aw "scripts/$mode.ps1")" "$@"
-fi
 connections=${1:-2000}
 ramp=${2:-500}
 hold=${3:-20}
@@ -26,7 +23,7 @@ build_unless_prebuilt --bin gateway --bin bot >"$temp/build" 2>&1 || fail 'build
 export RUN_PREBUILT=1
 config=${GATEWAY_CONFIG:-dev/config/gateway.$mode.toml}
 if [[ $mode == stress ]]; then export BOT_CONFIG=${BOT_CONFIG:-dev/config/bot.stress.toml}; fi
-GATEWAY_CONFIG=$config bash scripts/run-gateway.sh >"$temp/ready" 2>"$temp/errors" &
+"$(resolve_binary gateway)" --config "$config" >"$temp/ready" 2>"$temp/errors" &
 pid=$!
 deadline=$((SECONDS + 20))
 while ! grep -q '^ready ' "$temp/ready"; do
@@ -38,7 +35,9 @@ admin= client=
 for field in "${fields[@]}"; do case $field in admin=*) admin=${field#admin=} ;; client=*) client=${field#client=} ;; esac; done
 [[ -n $admin && -n $client ]] || fail 'Gateway did not announce readiness'
 metrics() { curl --fail --silent --max-time 2 "http://$admin/metrics"; }
-current() { awk '$1 == "net_connections_current{listener=\"client\"}" { print $2 }' <<< "$1"; }
+current() {
+    awk '$1 == "net_connections_current{listener=\"client\"}" && $2 ~ /^[0-9]+$/ { print $2; found=1 } END { if (!found) exit 1 }' <<< "$1"
+}
 sample() { printf '%s\n' "$1" | awk '/^(net_|gateway_auth_|runtime_)/'; }
 if [[ $mode == smoke ]]; then
     bash scripts/run-bot.sh connect-auth --gateway "$client" --connections 50 --expect-established 50 --expect-close-reason auth_failed || fail 'auth scenario failed'
@@ -50,7 +49,7 @@ else
     peak=-1
     while kill -0 "$bot_pid" 2>/dev/null; do
         body=$(metrics) || fail 'peak metrics request failed'
-        active=$(current "$body")
+        active=$(current "$body") || fail 'current connections metric is absent'
         if (( active > peak )); then peak=$active; peak_body=$body; fi
         sleep 0.2
     done
@@ -65,7 +64,8 @@ fi
 deadline=$((SECONDS + 5))
 while :; do
     body=$(metrics) || fail 'final metrics request failed'
-    [[ $(current "$body") == 0 ]] && break
+    active=$(current "$body") || fail 'current connections metric is absent'
+    [[ $active == 0 ]] && break
     (( SECONDS < deadline )) || fail 'Gateway connections did not return to zero'
     sleep 0.1
 done

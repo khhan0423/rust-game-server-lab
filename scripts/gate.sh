@@ -10,7 +10,10 @@ fi
 load_env
 export SQLX_OFFLINE=true
 # The vendored htmx file must match its recorded hash.
-(cd crates/ops/assets && grep -v '^#' htmx.sha256 | sha256sum --check --quiet -)
+if ! (cd crates/ops/assets && grep -v '^#' htmx.sha256 | sha256sum --check --quiet -); then
+    printf '%s\n' 'crates/ops/assets/htmx.min.js does not match htmx.sha256' >&2
+    exit 1
+fi
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 # Cross-package integration tests need the publisher and gateway executables.

@@ -11,6 +11,9 @@ load_env() {
         export "$key=$value"
     done < .env
 }
+strip_ops_secrets() {
+    unset DATABASE_URL LOGIN_DB_URL GAME_DB_URL POSTGRES_PASSWORD PUBLISHER_GAME_API_KEY
+}
 resolve_binary() {
     local binary="${CARGO_TARGET_DIR:-target}/debug/$1"
     [[ ! -f $binary.exe ]] || binary=$binary.exe

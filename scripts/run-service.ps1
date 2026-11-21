@@ -6,14 +6,7 @@ $oldEnv = @{}
 Push-Location (Join-Path $PSScriptRoot '..')
 try {
     if ($service -in 'server', 'publisher', 'ops') { Import-ServiceEnv $oldEnv }
-    if ($service -eq 'ops') {
-        foreach ($name in 'DATABASE_URL', 'LOGIN_DB_URL', 'GAME_DB_URL', 'POSTGRES_PASSWORD', 'PUBLISHER_GAME_API_KEY') {
-            if (!$oldEnv.ContainsKey($name)) {
-                $oldEnv[$name] = [Environment]::GetEnvironmentVariable($name)
-            }
-            [Environment]::SetEnvironmentVariable($name, $null)
-        }
-    }
+    if ($service -eq 'ops') { Remove-OpsSecrets $oldEnv }
     Build-UnlessPrebuilt --bin $service
     & (Resolve-Binary $service) --config (Get-ServiceConfig $service) @serviceArgs
     $code = $LASTEXITCODE

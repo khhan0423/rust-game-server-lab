@@ -30,6 +30,14 @@ function Build-UnlessPrebuilt {
         if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
     } finally { $env:SQLX_OFFLINE = $previous }
 }
+function Remove-OpsSecrets([hashtable]$Saved) {
+    foreach ($name in 'DATABASE_URL', 'LOGIN_DB_URL', 'GAME_DB_URL', 'POSTGRES_PASSWORD', 'PUBLISHER_GAME_API_KEY') {
+        if (!$Saved.ContainsKey($name)) {
+            $Saved[$name] = [Environment]::GetEnvironmentVariable($name)
+        }
+        [Environment]::SetEnvironmentVariable($name, $null)
+    }
+}
 function Start-ServiceBinary($Service, $Config, $Arguments, $OutputFile, $ErrorFile) {
     $arguments = @('--config', ('"' + $Config + '"')) + $Arguments
     Start-Process -FilePath (Resolve-Binary $Service) -ArgumentList $arguments -RedirectStandardOutput $OutputFile -RedirectStandardError $ErrorFile -PassThru -NoNewWindow

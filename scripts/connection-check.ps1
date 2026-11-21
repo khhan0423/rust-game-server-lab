@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 . "$PSScriptRoot/lib.ps1"
 $oldPrebuilt = $env:RUN_PREBUILT
-$oldOffline = $env:SQLX_OFFLINE
+$oldBotConfig = $env:BOT_CONFIG
 $gateway = $null
 $bot = $null
 $code = 0
@@ -26,7 +26,7 @@ try {
     $env:RUN_PREBUILT = '1'
     $config = if ($env:GATEWAY_CONFIG) { $env:GATEWAY_CONFIG } else { "dev/config/gateway.$Mode.toml" }
     $ready = Join-Path $temp 'ready'
-    $gateway = & "$PSScriptRoot/run-gateway.ps1" -Config $config -ReadyFile $ready -ErrorFile (Join-Path $temp 'gateway-errors')
+    $gateway = Start-ServiceBinary gateway $config @() $ready (Join-Path $temp 'gateway-errors')
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     while (!(Test-Path $ready) -or !(Select-String -LiteralPath $ready -Pattern '^ready ' -Quiet)) {
         if ($gateway.HasExited -or [DateTime]::UtcNow -ge $deadline) { throw 'Gateway did not announce readiness' }
@@ -44,9 +44,9 @@ try {
         & "$PSScriptRoot/run-bot.ps1" connect-hold --gateway $clientAddr --connections 20 --hold-secs 3 --expect-established 20 --expect-close-reason auth_timeout
         if ($LASTEXITCODE -ne 0) { throw 'hold scenario failed' }
     } else {
-        $botConfig = if ($env:BOT_CONFIG) { $env:BOT_CONFIG } else { 'dev/config/bot.stress.toml' }
+        if (!$env:BOT_CONFIG) { $env:BOT_CONFIG = 'dev/config/bot.stress.toml' }
         $output = Join-Path $temp 'bot'
-        $bot = Start-ServiceBinary bot $botConfig @('connect-hold', '--gateway', $clientAddr, '--connections', $Connections, '--ramp-per-sec', $Ramp, '--hold-secs', $Hold, '--expect-established', $Connections) $output (Join-Path $temp 'bot-errors')
+        $bot = Start-ServiceBinary bot (Get-ServiceConfig bot) @('connect-hold', '--gateway', $clientAddr, '--connections', $Connections, '--ramp-per-sec', $Ramp, '--hold-secs', $Hold, '--expect-established', $Connections) $output (Join-Path $temp 'bot-errors')
         [void]$bot.Handle
         $peak = -1
         $peakBody = ''
@@ -63,7 +63,7 @@ try {
     }
     $deadline = [DateTime]::UtcNow.AddSeconds(5)
     do {
-        $body = Read-Metrics
+        try { $body = Read-Metrics } catch { throw 'final metrics request failed' }
         if ((Current $body) -eq 0) { break }
         if ([DateTime]::UtcNow -ge $deadline) { throw 'Gateway connections did not return to zero' }
         Start-Sleep -Milliseconds 100
@@ -83,7 +83,7 @@ try {
     }
     if (Test-Path $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
     $env:RUN_PREBUILT = $oldPrebuilt
-    $env:SQLX_OFFLINE = $oldOffline
+    $env:BOT_CONFIG = $oldBotConfig
     Pop-Location
 }
 # The last stdout line is always "RESULT <mode> PASS" or "RESULT <mode> FAIL: <reason>", so a watcher can key on it.
