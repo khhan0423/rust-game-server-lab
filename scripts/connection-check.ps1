@@ -88,4 +88,6 @@ try {
     $env:SQLX_OFFLINE = $oldOffline
     Pop-Location
 }
+# The last stdout line is always "RESULT <mode> PASS" or "RESULT <mode> FAIL", so a watcher can key on it.
+if ($code -eq 0) { [Console]::Out.WriteLine("RESULT $mode PASS") } else { [Console]::Out.WriteLine("RESULT $mode FAIL") }
 exit $code

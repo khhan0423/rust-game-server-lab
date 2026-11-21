@@ -18,7 +18,8 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
-fail() { printf '%s: %s\n' "$mode" "$1" >&2; exit 1; }
+# The last stdout line is always "RESULT <mode> PASS" or "RESULT <mode> FAIL: <reason>", so a watcher can key on it.
+fail() { printf '%s: %s\n' "$mode" "$1" >&2; printf 'RESULT %s FAIL: %s\n' "$mode" "$1"; exit 1; }
 export SQLX_OFFLINE=true
 cargo build --bin gateway --bin bot >"$temp/build" 2>&1 || fail 'building Gateway and bot failed'
 export RUN_PREBUILT=1
@@ -67,3 +68,4 @@ while :; do
     sleep 0.1
 done
 [[ $mode == smoke ]] || { printf 'end metrics\n'; sample "$body"; }
+printf 'RESULT %s PASS\n' "$mode"
