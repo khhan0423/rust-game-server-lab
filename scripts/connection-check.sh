@@ -10,7 +10,8 @@ connections=${1:-2000}
 ramp=${2:-500}
 hold=${3:-20}
 pid= bot_pid=
-temp=$(mktemp -d)
+mkdir -p target/tmp
+temp=$(mktemp -d "target/tmp/$mode.XXXXXXXX")
 cleanup() {
     if [[ -n $bot_pid ]]; then kill "$bot_pid" 2>/dev/null || true; wait "$bot_pid" 2>/dev/null || true; fi
     if [[ -n $pid ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
@@ -27,6 +28,8 @@ config=dev/config/gateway.stress.toml
 if [[ $mode == smoke ]]; then
     config=$temp/gateway.toml
     sed 's/auth_timeout_ms = 10000/auth_timeout_ms = 1000/' dev/config/gateway.toml >"$config"
+else
+    export BOT_CONFIG=dev/config/bot.stress.toml
 fi
 GATEWAY_CONFIG=$config bash scripts/run-gateway.sh >"$temp/ready" 2>"$temp/errors" &
 pid=$!

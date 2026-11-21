@@ -1,8 +1,9 @@
 # Dev ports are above 15000 on purpose: Windows hands out reserved ranges inside its
 # dynamic port range (1024-15000 on the dev PC), and a reserved port cannot be bound.
 [process]
+name = "publisher"
+environment = "development"
 admin_addr = "127.0.0.1:18190"
-log_dir = "logs/publisher"
 log_level = "info"
 
 [db]

@@ -1,0 +1,5 @@
+[process]
+name = "bot"
+instance = "stress"
+environment = "development"
+log_level = "info"

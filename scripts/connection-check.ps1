@@ -5,7 +5,6 @@ $oldPrebuilt = $env:RUN_PREBUILT
 $oldOffline = $env:SQLX_OFFLINE
 $gateway = $null
 $bot = $null
-$temp = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
 $code = 0
 function Read-Metrics {
     (Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 'http://127.0.0.1:18490/metrics').Content
@@ -19,6 +18,7 @@ function Show-Metrics([string]$Title, [string]$Metrics) {
     $Metrics -split '\r?\n' | Where-Object { $_ -match '^(gateway_|runtime_)' }
 }
 Push-Location (Join-Path $PSScriptRoot '..')
+$temp = Join-Path (Get-Location).Path "target/tmp/$Mode.$([Guid]::NewGuid())"
 try {
     [void][IO.Directory]::CreateDirectory($temp)
     $env:SQLX_OFFLINE = 'true'
@@ -47,7 +47,8 @@ try {
         $target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { 'target' }
         $binary = Join-Path $target 'debug/bot.exe'
         $output = Join-Path $temp 'bot'
-        $bot = Start-Process -FilePath (Resolve-Path $binary) -ArgumentList @('connect-hold', '--connections', $Connections, `
+        $bot = Start-Process -FilePath (Resolve-Path $binary) -ArgumentList @('--config', 'dev/config/bot.stress.toml', `
+            'connect-hold', '--connections', $Connections, `
             '--ramp-per-sec', $Ramp, '--hold-secs', $Hold, '--expect-established', $Connections) `
             -RedirectStandardOutput $output -RedirectStandardError (Join-Path $temp 'bot-errors') -PassThru -NoNewWindow
         [void]$bot.Handle

@@ -1,8 +1,7 @@
-environment = "development"
-
 [process]
+name = "ops"
+environment = "development"
 admin_addr = "127.0.0.1:18390"
-log_dir = "logs/ops"
 log_level = "info"
 
 [http]

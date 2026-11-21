@@ -10,7 +10,8 @@ try {
     $target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { 'target' }
     $binary = Join-Path $target 'debug/bot'
     if (Test-Path -LiteralPath "$binary.exe") { $binary = "$binary.exe" }
-    & $binary @args
+    $config = if ($env:BOT_CONFIG) { $env:BOT_CONFIG } else { 'dev/config/bot.toml' }
+    & $binary --config $config @args
     $code = $LASTEXITCODE
 } finally { Pop-Location }
 exit $code

@@ -1,0 +1,4 @@
+[process]
+name = "client"
+environment = "development"
+log_level = "info"

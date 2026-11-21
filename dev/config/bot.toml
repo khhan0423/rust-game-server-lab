@@ -1,0 +1,4 @@
+[process]
+name = "bot"
+environment = "development"
+log_level = "info"

@@ -1,6 +1,9 @@
 [process]
+name = "gateway"
+instance = "stress"
+environment = "development"
 admin_addr = "127.0.0.1:18490"
-log_dir = "logs/gateway-stress"
+log_root = "logs"
 log_level = "info"
 
 [client]

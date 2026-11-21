@@ -1,6 +1,7 @@
 [process]
+name = "game"
+environment = "development"
 admin_addr = "127.0.0.1:18290"
-log_dir = "logs/server"
 log_level = "info"
 
 [db]
