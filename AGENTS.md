@@ -36,15 +36,11 @@ The dev environment runs inside Rancher Desktop: PostgreSQL and Valkey as contai
 
 ## Reporting to the owner
 
-Every report that closes a piece of work uses the same eight parts, in this order, written in Korean and in plain words. A part with nothing to say stays in the report with "없음", so the owner can tell "nothing" from "forgotten".
+The owner's report is a status report of the whole project, in Korean and plain words, grouped by state. Use it whenever the owner asks where things stand, and after finishing a stage.
 
-1. **결론** (conclusion): whether it worked and how far it got, in one or two sentences.
-2. **바뀐 것** (what changed): the visible changes, three or four lines.
-3. **확인한 방법** (how it was checked), always split in three: what was run and seen directly, what only automated tests covered, and what was not checked.
-4. **제가 정한 것** (decided without asking): details settled without the owner, with the reason.
-5. **문제와 위험** (problems and risks): failures, temporary handling, anything unresolved.
-6. **정해 주실 것** (decisions needed): for each question, why it must be decided and the recommendation.
-7. **다음** (next): the next step in one or two lines.
-8. **기록** (record): date, commit, and gate results on Windows and Linux with test counts.
+1. **진행한 것** (done): things that exist and were seen working. Each line says what it is and how it was checked.
+2. **진행 중인 것** (in progress): things that were started and are not finished. Each line says what works today and what is missing.
+3. **계획만 있는 것** (planned only): things with a design or a plan and no code. Each line names the document.
+4. **정해 주실 것** (decisions needed): each question with the reason it must be decided and the recommendation.
 
-Keep a report within one screen and point to documents for detail. Do not use coded labels. Never mix "seen directly" with "covered by tests".
+Rules: an item appears in exactly one group. "Done" means verified working, never "code written". A skeleton that starts but does nothing useful is "in progress". Keep each item to one line and the whole report within one screen; details live in the documents. Do not use coded labels. End with the date and the latest commit on `main`.
