@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[path = "ops/audit_tests.rs"]
+mod audit;
+
 const SECRET: [u8; 32] = [1; 32];
 
 struct Fixture {

@@ -1,5 +1,6 @@
 //! Login database persistence for publisher accounts, guest identities, and entry tickets.
 
+pub mod ops;
 mod types;
 
 use sqlx::migrate::Migrator;

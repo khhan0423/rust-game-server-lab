@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS \"occurred_at!\", operator, action, account_id,\n            before_status AS \"before: AccountStatus\", after_status AS \"after: AccountStatus\", reason\n         FROM ops_audit ORDER BY id DESC LIMIT $1 OFFSET $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "occurred_at!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "operator",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "operator"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "action",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "action"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "account_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "account_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "before: AccountStatus",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "before_status"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "after: AccountStatus",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "after_status"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ops_audit",
+            "name": "reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "083bb7bbf90fe28f2cdfc32985b24c71b6244c2ea2b5d8e1c8ecca8cc7de3a0b"
+}

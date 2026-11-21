@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.account_id, a.status AS \"status: AccountStatus\", to_char(a.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS \"created_at!\"\n         FROM accounts a\n         WHERE $1::text IS NULL OR a.account_id = $1 OR EXISTS (\n             SELECT 1 FROM account_identities i WHERE i.account_id = a.account_id AND i.provider = $2 AND i.subject = $1\n         ) ORDER BY a.created_at DESC, a.account_id DESC LIMIT $3 OFFSET $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts",
+            "name": "account_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status: AccountStatus",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "accounts",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int2",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "3bd75057379c43c374c38d818955999295dbf4d6ecf1a8001ba0c7c9611995d3"
+}

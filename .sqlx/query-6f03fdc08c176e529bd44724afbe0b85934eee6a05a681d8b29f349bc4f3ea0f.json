@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO ops_audit (operator, action, account_id, before_status, after_status, reason)\n         VALUES ($1, 'set_status', $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int2",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6f03fdc08c176e529bd44724afbe0b85934eee6a05a681d8b29f349bc4f3ea0f"
+}
