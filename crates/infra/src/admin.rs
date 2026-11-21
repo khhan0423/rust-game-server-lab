@@ -22,6 +22,10 @@ impl Readiness {
         self.0.store(true, Ordering::Release);
     }
 
+    pub(super) fn set_not_ready(&self) {
+        self.0.store(false, Ordering::Release);
+    }
+
     fn is_ready(&self) -> bool {
         self.0.load(Ordering::Acquire)
     }

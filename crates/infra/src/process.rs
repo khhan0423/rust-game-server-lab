@@ -3,6 +3,7 @@
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use metrics_exporter_prometheus::{BuildError, PrometheusBuilder};
 use serde::Deserialize;
@@ -48,6 +49,9 @@ pub enum ProcessError {
     /// The admin port task terminated abnormally.
     #[error("admin task stopped unexpectedly")]
     AdminTask(#[from] JoinError),
+    /// The runtime sampler task terminated abnormally.
+    #[error("runtime sampler stopped unexpectedly")]
+    RuntimeSampler(#[source] JoinError),
     /// The ready notification line could not be written to standard output.
     #[error("cannot announce readiness")]
     Announce(#[source] std::io::Error),
@@ -62,6 +66,7 @@ pub struct Process {
     readiness: Readiness,
     admin_addr: SocketAddr,
     admin_task: JoinHandle<std::io::Result<()>>,
+    runtime_sampler: JoinHandle<()>,
     shutdown: CancellationToken,
     _log: WorkerGuard,
 }
@@ -80,11 +85,15 @@ impl Process {
         let admin_addr = listener.local_addr();
         let readiness = Readiness::default();
         let shutdown = CancellationToken::new();
+        let runtime = tokio::runtime::Handle::current().metrics();
+        record_runtime_metrics(&runtime);
+        let runtime_sampler = tokio::spawn(sample_runtime(runtime, shutdown.clone()));
         let admin_task = tokio::spawn(listener.serve(readiness.clone(), metrics, shutdown.clone()));
         Ok(Self {
             readiness,
             admin_addr,
             admin_task,
+            runtime_sampler,
             shutdown,
             _log: log,
         })
@@ -119,11 +128,42 @@ impl Process {
 
     /// Waits for the shutdown signal (Ctrl+C), then closes the admin port.
     pub async fn run_until_shutdown(self) -> Result<(), ProcessError> {
-        tokio::signal::ctrl_c()
-            .await
-            .map_err(ProcessError::Signal)?;
-        tracing::info!("shutdown signal received");
-        self.shutdown.cancel();
-        self.admin_task.await?.map_err(ProcessError::AdminServe)
+        let signal = tokio::signal::ctrl_c().await.map_err(ProcessError::Signal);
+        if signal.is_ok() {
+            tracing::info!("shutdown signal received");
+        }
+        self.shutdown().await.and(signal)
     }
+
+    /// Stops the admin port and runtime sampler and notifies service tasks.
+    pub async fn shutdown(self) -> Result<(), ProcessError> {
+        self.readiness.set_not_ready();
+        metrics::gauge!("server_ready").set(0.0);
+        self.shutdown.cancel();
+        let (admin, sampler) = tokio::join!(self.admin_task, self.runtime_sampler);
+        sampler.map_err(ProcessError::RuntimeSampler)?;
+        admin?.map_err(ProcessError::AdminServe)
+    }
+}
+
+async fn sample_runtime(runtime: tokio::runtime::RuntimeMetrics, shutdown: CancellationToken) {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        tokio::select! {
+            biased;
+            () = shutdown.cancelled() => return,
+            _ = interval.tick() => record_runtime_metrics(&runtime),
+        }
+    }
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "A runtime cannot hold 2^53 tasks or workers"
+)]
+fn record_runtime_metrics(runtime: &tokio::runtime::RuntimeMetrics) {
+    metrics::gauge!("runtime_workers").set(runtime.num_workers() as f64);
+    metrics::gauge!("runtime_alive_tasks").set(runtime.num_alive_tasks() as f64);
+    metrics::gauge!("runtime_global_queue_depth").set(runtime.global_queue_depth() as f64);
 }

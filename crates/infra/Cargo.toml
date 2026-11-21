@@ -10,7 +10,7 @@ metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["net", "rt", "signal"] }
+tokio = { workspace = true, features = ["macros", "net", "rt", "signal", "time"] }
 tokio-util = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
