@@ -13,6 +13,12 @@ use crate::AppState;
 use crate::config::WatchedServer;
 use crate::pages::render;
 
+pub(super) const RUNTIME_METRICS: [&str; 3] = [
+    "runtime_workers",
+    "runtime_alive_tasks",
+    "runtime_global_queue_depth",
+];
+
 #[derive(Template)]
 #[template(path = "servers.html")]
 struct ServersPage<'a> {
@@ -82,9 +88,28 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
     };
     let metrics = match metrics.and_then(reqwest::Response::error_for_status) {
         Ok(response) => match response.text().await {
-            Ok(body) => samples(&body)
-                .map(|(name, value)| (name.to_owned(), value.to_owned()))
-                .collect(),
+            Ok(body) => {
+                let priority = [
+                    "server_ready",
+                    RUNTIME_METRICS[0],
+                    RUNTIME_METRICS[1],
+                    RUNTIME_METRICS[2],
+                ];
+                let samples = samples(&body)
+                    .filter(|sample| sample.labels.is_none())
+                    .collect::<Vec<_>>();
+                priority
+                    .into_iter()
+                    .filter_map(|name| samples.iter().find(|sample| sample.name == name))
+                    .chain(
+                        samples
+                            .iter()
+                            .filter(|sample| !priority.contains(&sample.name))
+                            .take(4),
+                    )
+                    .map(|sample| (sample.name.to_owned(), sample.value.to_owned()))
+                    .collect()
+            }
             Err(_) => Vec::new(),
         },
         Err(_) => Vec::new(),
@@ -98,32 +123,35 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
     }
 }
 
-fn samples(text: &str) -> impl Iterator<Item = (&str, &str)> {
-    fn sample(line: &str) -> Option<(&str, &str)> {
-        let mut fields = line.split_ascii_whitespace();
-        let name = fields.next()?;
-        let value = fields.next()?;
-        if !name.starts_with('#')
-            && name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':'))
-            && value.parse::<f64>().is_ok()
-        {
-            Some((name, value))
+#[derive(Debug)]
+pub(super) struct Sample<'a> {
+    pub(super) name: &'a str,
+    pub(super) labels: Option<&'a str>,
+    pub(super) value: &'a str,
+}
+
+pub(super) fn samples(text: &str) -> impl Iterator<Item = Sample<'_>> {
+    text.lines().filter_map(|line| {
+        let line = line.trim_start();
+        let boundary = line.find(|ch: char| ch == '{' || ch.is_ascii_whitespace())?;
+        let (name, rest) = line.split_at(boundary);
+        let (labels, values) = if let Some(labels) = rest.strip_prefix('{') {
+            let (labels, values) = labels.rsplit_once('}')?;
+            (Some(labels), values)
         } else {
-            None
-        }
-    }
-    text.lines()
-        .filter_map(sample)
-        .filter(|(name, _)| *name == "server_ready")
-        .take(1)
-        .chain(
-            text.lines()
-                .filter_map(sample)
-                .filter(|(name, _)| *name != "server_ready")
-                .take(4),
-        )
+            (None, rest)
+        };
+        let value = values.split_ascii_whitespace().next()?;
+        (name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':'))
+            && value.parse::<f64>().is_ok())
+        .then_some(Sample {
+            name,
+            labels,
+            value,
+        })
+    })
 }
 
 #[cfg(test)]
@@ -131,20 +159,27 @@ mod tests {
     use super::samples;
 
     #[test]
-    fn metrics_keep_unlabeled_numeric_samples_and_prioritize_readiness() {
-        let cases: &[(&str, &[(&str, &str)])] = &[
+    fn metrics_keep_numeric_samples_and_labels() {
+        for (text, expected) in [
             (
                 "# TYPE server_ready gauge\nconnection_count 2\nserver_ready 1\n",
-                &[("server_ready", "1"), ("connection_count", "2")],
+                vec![("connection_count", None, "2"), ("server_ready", None, "1")],
             ),
             (
-                "bad nope\nwith_labels{shard=\"1\"} 5\nduration 1.2e-2 123456\n",
-                &[("duration", "1.2e-2")],
+                "bad nope\nwith_labels{shard=\"first shard\"} 5\nduration 1.2e-2 123456\n",
+                vec![
+                    ("with_labels", Some("shard=\"first shard\""), "5"),
+                    ("duration", None, "1.2e-2"),
+                ],
             ),
-            ("\n# help\nmissing\n", &[]),
-        ];
-        for &(text, expected) in cases {
-            assert_eq!(samples(text).collect::<Vec<_>>(), expected);
+            ("\n# help\nmissing\n", vec![]),
+        ] {
+            assert_eq!(
+                samples(text)
+                    .map(|sample| (sample.name, sample.labels, sample.value))
+                    .collect::<Vec<_>>(),
+                expected
+            );
         }
     }
 }

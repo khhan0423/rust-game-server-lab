@@ -1,6 +1,7 @@
 //! Development operations tool for server monitoring and publisher account support.
 
 mod config;
+mod connections;
 mod pages;
 mod publisher;
 mod security;
@@ -72,6 +73,7 @@ async fn run(config: Config) -> anyhow::Result<()> {
     let router = Router::new()
         .route("/", get(|| async { Redirect::to("/servers") }))
         .merge(servers::routes())
+        .merge(connections::routes())
         .merge(pages::routes())
         .layer(middleware::from_fn_with_state(
             Arc::clone(&state),

@@ -86,14 +86,41 @@ async fn publisher(dir: &Path, pool: &PgPool) -> Child {
         .expect("build publisher before running ops tests")
 }
 
-async fn start_ops(dir: &Path, ready: &str, environment: &str) -> Child {
+async fn gateway(dir: &Path) -> Child {
+    let path = dir.join("gateway.toml");
+    tokio::fs::write(
+        &path,
+        format!(
+            "[process]\nadmin_addr='127.0.0.1:0'\nlog_dir='{}'\nlog_level='info'\n\
+         [client]\nlisten_addr='127.0.0.1:0'\nmax_connections=8\nauth_timeout_ms=1000\n\
+         write_queue_capacity=256\nlog_connections=true\n",
+            dir.join("gateway").display(),
+        ),
+    )
+    .await
+    .unwrap();
+    Command::new(
+        Path::new(env!("CARGO_BIN_EXE_ops"))
+            .with_file_name(format!("gateway{}", std::env::consts::EXE_SUFFIX)),
+    )
+    .arg("--config")
+    .arg(path)
+    .stdout(Stdio::piped())
+    .kill_on_drop(true)
+    .spawn()
+    .expect("build gateway before running ops tests")
+}
+
+async fn start_ops(dir: &Path, ready: (&str, &str), environment: &str) -> Child {
     let path = dir.join(format!("ops-{environment}.toml"));
-    let endpoint = address(ready, "ops_api");
-    let admin = address(ready, "admin");
+    let endpoint = address(ready.0, "ops_api");
+    let admin = address(ready.0, "admin");
+    let gateway_admin = address(ready.1, "admin");
     tokio::fs::write(&path, format!(
         "environment='{environment}'\n[process]\nadmin_addr='127.0.0.1:0'\nlog_dir='{}'\nlog_level='info'\n\
          [http]\nlisten_addr='127.0.0.1:0'\n[operator]\nname='Integration Operator'\n\
-         [publisher]\nops_api_url='http://{endpoint}'\n[[servers]]\nname='Publisher'\nadmin_addr='{admin}'\n", dir.join("operations").display(),
+         [publisher]\nops_api_url='http://{endpoint}'\n[[servers]]\nname='Publisher'\nadmin_addr='{admin}'\n\
+         [[servers]]\nname='Gateway'\nrole='gateway'\nadmin_addr='{gateway_admin}'\n", dir.join("operations").display(),
     )).await.unwrap();
     Command::new(env!("CARGO_BIN_EXE_ops"))
         .arg("--config")
@@ -124,9 +151,21 @@ async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgP
     tokio::fs::create_dir_all(&dir).await.unwrap();
     let mut publisher = publisher(&dir, &pool).await;
     let ready = announce(&mut publisher).await;
-    let mut ops = start_ops(&dir, &ready, "development").await;
+    let mut gateway = gateway(&dir).await;
+    let gateway_ready = announce(&mut gateway).await;
+    let mut ops = start_ops(&dir, (&ready, &gateway_ready), "development").await;
     let origin = format!("http://{}", address(&announce(&mut ops).await, "http"));
     let client = Client::builder().timeout(WAIT).no_proxy().build().unwrap();
+    let connections = page(&client, &format!("{origin}/connections")).await;
+    assert!(connections.contains("data-gateway=\"Gateway\" data-health=\"up\""));
+    assert!(connections.contains("gateway_connections_current</code></th><td>0</td>"));
+    assert!(connections.contains("<th scope=\"row\">auth_timeout</th><td>0</td>"));
+    assert!(connections.contains("hx-trigger=\"every 2s\""));
+    let servers = page(&client, &format!("{origin}/servers/table")).await;
+    assert!(servers.contains("runtime_workers"));
+    gateway.kill().await.unwrap();
+    let connections = page(&client, &format!("{origin}/connections/table")).await;
+    assert!(connections.contains("data-gateway=\"Gateway\" data-health=\"down\""));
     let guest: Value = client
         .post(format!(
             "http://{}/v1/guest/accounts",
@@ -196,7 +235,9 @@ async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgP
 
     let live = tokio::time::timeout(
         WAIT,
-        start_ops(&dir, &ready, "live").await.wait_with_output(),
+        start_ops(&dir, (&ready, &gateway_ready), "live")
+            .await
+            .wait_with_output(),
     )
     .await
     .unwrap()
