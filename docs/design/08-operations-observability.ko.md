@@ -55,7 +55,7 @@ metrics::gauge!("ccu", "shard" => shard_label).set(ccu as f64);
 
 | 영역 | 지표 |
 |---|---|
-| 접속 | 샤드별, Gateway별 동접. 로그인 성공/실패. **끊김 이유별 횟수**(02 문서 2.3) |
+| 접속 | 샤드별, Gateway별 동접. 로그인 성공/실패. **끊김 이유별 횟수**(02 문서 2.3) TCP 지표에는 `listener` 라벨을 붙인다: `net_connections_current`, `net_connections_accepted_total`, `net_connections_rejected_total`, `net_connections_closed_total`, `net_frames_received_total`, `net_frames_sent_total`, `net_bytes_received_total`, `net_bytes_sent_total`. 거절 및 종료 횟수에는 `reason`도 붙인다. |
 | Entry | 퍼블리셔 API 응답 시간과 실패, 신규 캐릭터 생성 수, 샤드별 배정 수 |
 | 존 스레드 | **틱 소요 시간, 틱 초과 횟수**, 활성/휴면 InGameSpace 수 |
 | 플레이어 액터 | 액터 수, inbox 대기 명령 수, 명령 처리 시간, DB 함수 소요 시간, 재시도 횟수, **느린 명령 횟수** (01 문서 5.8) |

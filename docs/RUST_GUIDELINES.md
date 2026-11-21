@@ -57,8 +57,9 @@ Server/
 │  ├─ protocol/          # Packet definitions, encoding/decoding. No I/O, no async
 │  ├─ game/              # Game rules, state. No I/O, no DB (pure logic)
 │  ├─ db/                # Sole owner of DB access (sqlx). Queries live only here
-│  ├─ net/               # Shared network code: framing codec, link send/receive
-│  ├─ infra/             # Common operational code: config loading, log init, metrics, admin port. Depends on no other crate
+│  ├─ net/               # Listener, ConnectionHandler, FrameReader, and frame and envelope codecs
+│  ├─ infra/             # Config, logging, metrics, RuntimeConfig, Server, Shutdown, HttpListener, HTTP API conventions
+│  ├─ testkit/           # TestDir, ServerProcess and GatewayFixture for tests only
 │  ├─ gateway/           # Gateway binary (design 02)
 │  ├─ publisher/         # Publisher login server binary (design 07). Separate from game crates. Uses only the Login DB
 │  ├─ ops/               # Operations tool web server (design 12). Depends only on infra; reaches data through operator APIs
@@ -85,7 +86,8 @@ binary crates (server, gateway, bot, client, launcher) ──> infra   (infra de
 ```
 
 - `protocol` depends on no workspace crate. It owns the pilot schemas and packet dispatch, and builds the message ID registry from the [message catalog](protocol/message-catalog.md). Its runtime and `game` do no I/O; `game` may depend only on `protocol`.
-- `net` depends on `protocol` and owns the client frame and backend envelope codecs. The stage adds both libraries without wiring them into the binaries.
+- `net` depends on `protocol` and owns framed reads and TCP listeners, including per-listener IDs, admission limits, write queues and shutdown. `infra` has no workspace dependency and owns server startup, readiness, HTTP listeners, shutdown and operator HTTP conventions.
+- Depend on `testkit` only through `[dev-dependencies]`. Production binaries do not link its process or temporary directory fixtures.
 - `gateway` does not know `game`. The Gateway does not interpret game packet payloads (design 02 3.2).
 - `game` does not know `db`. When persistence is needed, `server` takes `game`'s result and passes it to `db`.
 - Dependency cycles are blocked by the compiler. But "just put it all in server" is not something the compiler can block, so review blocks it.

@@ -55,7 +55,7 @@ metrics::gauge!("ccu", "shard" => shard_label).set(ccu as f64);
 
 | Area | Metrics |
 |---|---|
-| Connections | Concurrent users per shard and per Gateway. Login successes and failures. **Counts by disconnect reason** (Document 02, Section 2.3). |
+| Connections | Concurrent users per shard and per Gateway. Login successes and failures. **Counts by disconnect reason** (Document 02, Section 2.3). TCP series carry a `listener` label: `net_connections_current`, `net_connections_accepted_total`, `net_connections_rejected_total`, `net_connections_closed_total`, `net_frames_received_total`, `net_frames_sent_total`, `net_bytes_received_total`, `net_bytes_sent_total`. Rejected and closed connections also carry `reason`. |
 | Entry | Publisher API response time and failures, number of new characters created, and assignments per shard. |
 | Zone thread | **Tick duration and tick overrun count**, number of active and dormant InGameSpace instances. |
 | Player actor | Actor count, commands waiting in the inbox, command processing time, DB function duration, retry count, and **slow command count** (Document 01, Section 5.8). |

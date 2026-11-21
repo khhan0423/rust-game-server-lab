@@ -55,11 +55,12 @@
 
 ```
 crates/
-  infra/      설정, 로그, 지표, 관리 포트 (모든 서버 공용)
+  infra/      설정, 로그, 지표, 프로세스 기동 및 종료, HTTP 리스너
   db/         DB 접근 전담. SQL은 여기에만 둔다
   server/     Game 서버 바이너리
   protocol/   메시지 정의(.proto)와 메시지 번호 표
-  net/        프레임 코덱과 서버 간 봉투 코덱
+  net/        TCP 리스너, 연결별 쓰기 큐, 프레임 및 봉투 코덱
+  testkit/    통합 테스트용 서버 프로세스와 임시 디렉터리
   gateway/    Gateway 바이너리
   publisher/  퍼블리셔 로그인 서버 바이너리 (게스트 로그인, 입장 티켓)
   ops/        운영 도구, 웹 서버 (서버 현황, 접속, 계정, 조작 기록)
@@ -75,7 +76,7 @@ docs/
   plan/                실행 계획, 파일럿 단계, 테스트 시나리오
 ```
 
-크레이트는 처음 필요한 단계에서 만듭니다. 앞으로 `protocol`, `net`, `game`, `publisher`(퍼블리셔 로그인 서버), `bot`, `launcher`(GUI 서버 런처), `client`(GUI 테스트 클라이언트)가 생깁니다.
+`game`과 `launcher`는 아직 계획 단계입니다.
 
 ## 파일 위치
 

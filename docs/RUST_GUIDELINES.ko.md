@@ -57,8 +57,9 @@ Server/
 │  ├─ protocol/          # 패킷 정의, 인코딩/디코딩. I/O 없음, async 없음
 │  ├─ game/              # 게임 규칙, 상태. I/O 없음, DB 없음 (순수 로직)
 │  ├─ db/                # DB 접근 전담 (sqlx). 쿼리는 여기에만 존재
-│  ├─ net/               # 프레이밍 코덱, 링크 송수신 등 공유 네트워크 코드
-│  ├─ infra/             # 공용 운영 코드: 설정 로드, 로그 초기화, 지표, 관리 포트. 다른 크레이트에 의존하지 않음
+│  ├─ net/               # Listener, ConnectionHandler, FrameReader, 프레임 및 봉투 코덱
+│  ├─ infra/             # 설정, 로그, 지표, RuntimeConfig, Server, Shutdown, HttpListener, HTTP API 규약
+│  ├─ testkit/           # 테스트 전용: TestDir, ServerProcess, GatewayFixture
 │  ├─ gateway/           # Gateway 바이너리 (설계 02)
 │  ├─ publisher/         # 퍼블리셔 로그인 서버 바이너리 (설계 07). 게임 크레이트와 분리. Login DB만 쓴다
 │  ├─ ops/               # 운영 도구 웹 서버 (설계 12). infra에만 의존하고, 데이터는 운영자 API로만 읽는다
@@ -85,7 +86,8 @@ publisher ──> db        (Login DB 모듈만. game, net에 의존하지 않�
 ```
 
 - `protocol`은 다른 워크스페이스 크레이트에 의존하지 않는다. 파일럿 스키마와 패킷 분기를 담당하며 [메시지 목록](protocol/message-catalog.ko.md)에서 메시지 ID 레지스트리를 생성한다. 실행 중에는 `game`과 마찬가지로 I/O를 하지 않는다. `game`은 `protocol`에만 의존할 수 있다.
-- `net`은 `protocol`에 의존하며 클라이언트 프레임과 백엔드 봉투 코덱을 담당한다. 이 단계에서 두 라이브러리를 추가하되 바이너리에는 연결하지 않는다.
+- `net`은 `protocol`에 의존하며 프레임을 읽고, TCP 리스너별로 연결 ID, 접속 제한, 쓰기 큐와 종료를 관리한다. `infra`는 워크스페이스 크레이트에 의존하지 않으며 서버의 기동, 준비 알림, HTTP 리스너, 종료와 운영자 HTTP 규약을 담당한다.
+- `testkit`은 `[dev-dependencies]`에만 둔다. 배포 바이너리는 테스트용 프로세스나 임시 디렉터리 코드를 링크하지 않는다.
 - `gateway`는 `game`을 모른다. Gateway는 게임 패킷의 페이로드를 해석하지 않기 때문이다(설계 02 3.2).
 - `game`은 `db`를 모른다. 영속화가 필요하면 `server`가 `game`의 결과를 받아 `db`에 넘긴다.
 - 의존성 순환은 컴파일러가 막는다. 하지만 "일단 server에 다 넣자"는 컴파일러가 막지 못하니 리뷰에서 막는다.

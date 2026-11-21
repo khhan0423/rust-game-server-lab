@@ -55,11 +55,12 @@ A few decisions behind that picture:
 
 ```
 crates/
-  infra/      config, logging, metrics, admin port (shared by every server)
+  infra/      config, logging, metrics, process startup and shutdown, HTTP listeners
   db/         all database access; SQL lives only here
   server/     game server binary
   protocol/   message definitions (.proto) and the message ID table
-  net/        frame codec and server-to-server envelope codec
+  net/        TCP listeners, per-connection write queues, frame and envelope codecs
+  testkit/    server processes and temporary directories for integration tests only
   gateway/    gateway binary
   publisher/  publisher login server binary (guest login, entry tickets)
   ops/        operations tool, a web server (server status, connections, accounts, audit)
@@ -75,7 +76,7 @@ docs/
   plan/                execution plan, pilot stages, test scenarios
 ```
 
-Crates are added in the stage that first needs them. Still to come: `protocol`, `net`, `game`, `publisher` (publisher login server), `bot`, `launcher` (GUI server launcher), and `client` (GUI test client).
+The `game` and `launcher` crates are planned.
 
 ## Where things are
 
