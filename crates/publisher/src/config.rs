@@ -13,6 +13,7 @@ pub(super) struct Config {
     pub(super) process: ProcessConfig,
     pub(super) db: DbConfig,
     pub(super) http: HttpConfig,
+    pub(super) ops_api: HttpConfig,
     #[serde(default)]
     pub(super) tickets: TicketConfig,
     pub(super) games: HashMap<String, GameConfig>,

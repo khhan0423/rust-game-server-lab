@@ -30,6 +30,7 @@ async fn write_config(name: &str) -> PathBuf {
         "[process]\nadmin_addr = \"127.0.0.1:0\"\nlog_dir = '{}'\nlog_level = \"info\"\n\n\
         [db]\nmax_connections = 2\nacquire_timeout_ms = 3000\n\n\
         [http]\nlisten_addr = \"127.0.0.1:0\"\n\n\
+        [ops_api]\nlisten_addr = \"127.0.0.1:0\"\n\n\
         [games.lab]\nentry_url = \"http://127.0.0.1:7200\"\n",
         dir.join("logs").display()
     );
@@ -48,12 +49,13 @@ async fn publisher(name: &str, pool: &PgPool) -> Command {
             pool.connect_options().to_url_lossy().as_str(),
         )
         .env("PUBLISHER_GAME_API_KEY", KEY)
+        .env("PUBLISHER_OPS_API_KEY", OPS_KEY)
         .stdout(Stdio::piped())
         .kill_on_drop(true);
     command
 }
 
-async fn ready_addresses(child: &mut Child) -> (SocketAddr, SocketAddr) {
+async fn ready_addresses(child: &mut Child) -> (SocketAddr, SocketAddr, SocketAddr) {
     let stdout = child.stdout.take().unwrap();
     let line = tokio::time::timeout(WAIT, BufReader::new(stdout).lines().next_line())
         .await
@@ -64,7 +66,12 @@ async fn ready_addresses(child: &mut Child) -> (SocketAddr, SocketAddr) {
         .strip_prefix("ready admin=")
         .and_then(|fields| fields.split_once(" api="))
         .expect("unexpected ready line");
-    (admin.parse().unwrap(), api.parse().unwrap())
+    let (api, ops) = api.split_once(" ops_api=").unwrap();
+    (
+        admin.parse().unwrap(),
+        api.parse().unwrap(),
+        ops.parse().unwrap(),
+    )
 }
 
 async fn assert_error(response: Response, status: StatusCode, error: &str) {
@@ -88,7 +95,7 @@ fn credential(value: &Value) -> &str {
 #[sqlx::test(migrator = "db::login::LOGIN_MIGRATOR")]
 async fn publisher_serves_guest_creation_login_and_single_use_verification(pool: PgPool) {
     let mut child = publisher("flow", &pool).await.spawn().unwrap();
-    let (admin, api) = ready_addresses(&mut child).await;
+    let (admin, api, _) = ready_addresses(&mut child).await;
     let client = Client::builder().timeout(WAIT).build().unwrap();
     let ready = client
         .get(format!("http://{admin}/health/ready"))
@@ -205,3 +212,8 @@ async fn publisher_refuses_to_start_when_login_schema_is_out_of_date(pool: PgPoo
             .contains("schema is out of date")
     );
 }
+
+const OPS_KEY: &str = "publisher-operator-test-key";
+
+#[path = "support/operator.rs"]
+mod operator;
