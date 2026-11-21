@@ -79,21 +79,24 @@ metrics::gauge!("ccu", "shard" => shard_label).set(ccu as f64);
 
 ## 4. 로그
 
-경로는 `04-database.md` 1.1을 따른다. 여기서는 코드 쪽 규칙을 정한다.
+실행 시 만드는 최상위 폴더는 로그 파일을 담는 `logs/`, 테스트 클라이언트의 인증 정보를 담는 `client-data/`, 빌드 결과와 테스트 임시 파일을 담는 `target/`이다. 로그 파일은 프로세스 인스턴스별 폴더에 쓴다. 테스트는 `log_root`를 `target/` 아래의 경로로 지정할 수 있다.
 
 | 로그 | 만드는 방법 | 파일 |
 |---|---|---|
-| **운영 로그** | `tracing` 매크로. `tracing-subscriber`의 JSON 형식 | `logs/ops.jsonl` (날짜별 회전) |
-| **게임 분석 로그** | 타입이 있는 이벤트 enum을 `serde_json`으로 직렬화 | `logs/game-analytics.jsonl` (날짜별 회전) |
+| **운영 로그** | `tracing` 매크로로 기록하고 `infra`의 공용 포매터로 변환 | `<log_root>/<name>-<instance>/ops.<YYYY-MM-DD>.jsonl` (UTC 날짜마다 파일 교체) |
+| **게임 분석 로그** | 타입이 있는 이벤트 enum을 `serde_json`으로 직렬화 | `<log_root>/<name>-<instance>/game-analytics.<YYYY-MM-DD>.jsonl` (UTC 날짜마다 파일 교체) |
 | 거래성 로그 | Game DB의 같은 트랜잭션 (로그 파일 아님) | - |
 
 ### 4.1 운영 로그
 
-```rust
-let (ops_writer, _guard) = tracing_appender::non_blocking(
-    tracing_appender::rolling::daily("logs", "ops.jsonl"),
-);
-tracing_subscriber::fmt().json().with_writer(ops_writer).init();
+각 프로그램은 `[process]`에 `name`(`publisher`, `game`, `gateway`, `ops`, `bot`, `client` 중 하나), `instance`(기본값 `"1"`, 클라이언트는 프로필 이름), `environment`(`development`, `friends_test`, `alpha`, `beta`, `live` 중 하나), `log_root`(기본값 `"logs"`)를 둔다. 로그 폴더와 파일 이름은 이 설정으로 정해진다. 프로그램마다 시작할 때 `infra`의 공용 함수로 로거를 한 번만 설치한다.
+
+이벤트마다 JSON 객체 하나를 한 줄에 쓴다. 맨 앞에는 `ts`(소수점 아래 여섯 자리와 `Z`가 붙는 RFC 3339 UTC 시각), `level`(`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`), `env`, `server`, `instance`, `target`, `msg`를 이 순서로 쓴다. 그 뒤에 바깥쪽 스팬에서 안쪽 스팬 순서로 필드를 펼쳐 쓰고, 마지막에 이벤트 자체의 필드를 쓴다. 이름이 같으면 안쪽 스팬이 바깥쪽 스팬을, 이벤트가 스팬을 덮어쓴다. 표준 키와 겹치는 필드 이름에는 밑줄을 붙인다. 숫자와 불리언은 JSON 타입을 유지하고, 나머지는 문자열로 쓴다.
+
+같은 의미에는 같은 필드 이름을 쓴다. `conn_id`, `session_id`, `player_id`, `account_id`, `request_id`, `peer`, `reason`, `error`, `elapsed_ms`(밀리초 단위 경과 시간)다.
+
+```json
+{"ts":"2026-11-21T12:00:00.123456Z","level":"INFO","env":"development","server":"gateway","instance":"1","target":"gateway::connection","msg":"connection closed","conn_id":69,"peer":"127.0.0.1:50000","reason":"auth_timeout","elapsed_ms":1000}
 ```
 
 - `non_blocking`은 로그를 채널에 넣고 바로 돌아온다. 파일 쓰기는 백그라운드 스레드 하나가 한다. **존 스레드가 디스크 I/O로 멈추지 않는다.**

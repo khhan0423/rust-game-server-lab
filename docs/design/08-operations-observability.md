@@ -79,21 +79,24 @@ metrics::gauge!("ccu", "shard" => shard_label).set(ccu as f64);
 
 ## 4. Logs
 
-Use the paths in `04-database.md` 1.1. This section defines the rules for the code.
+The top-level runtime folders are `logs/` for file logs, `client-data/` for test client credentials, and `target/` for builds and test scratch files. Each log belongs in its process instance directory. Tests can set `log_root` to a directory under `target/`.
 
 | Log | How It's Written | File |
 |---|---|---|
-| **Operations log** | `tracing` macros. JSON format from `tracing-subscriber`. | `logs/ops.jsonl` (daily rotation) |
-| **Game analytics log** | Serialize a typed event enum with `serde_json`. | `logs/game-analytics.jsonl` (daily rotation) |
+| **Operations log** | `tracing` macros through the shared formatter in `infra`. | `<log_root>/<name>-<instance>/ops.<YYYY-MM-DD>.jsonl` (UTC daily rotation) |
+| **Game analytics log** | Serialize a typed event enum with `serde_json`. | `<log_root>/<name>-<instance>/game-analytics.<YYYY-MM-DD>.jsonl` (UTC daily rotation) |
 | Transactional log | In the same Game DB transaction (not a log file). | - |
 
 ### 4.1 Operations Log
 
-```rust
-let (ops_writer, _guard) = tracing_appender::non_blocking(
-    tracing_appender::rolling::daily("logs", "ops.jsonl"),
-);
-tracing_subscriber::fmt().json().with_writer(ops_writer).init();
+Each program sets its identity in `[process]`: `name` (`publisher`, `game`, `gateway`, `ops`, `bot`, or `client`), `instance` (default `"1"`, or the profile name for the client), `environment` (`development`, `friends_test`, `alpha`, `beta`, or `live`), and `log_root` (default `"logs"`). The log directory and file name are derived from these settings. Programs set up logging once using the shared entry point in `infra`.
+
+Every event is written as one JSON object on one line. Its first seven keys, in order, are `ts` (RFC 3339 UTC with six fractional digits and a `Z` suffix), `level` (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`), `env`, `server`, `instance`, `target`, and `msg`. Fields from outer spans come next, then fields from inner spans, then event fields. Inner spans override outer spans on a name clash, and the event overrides spans. A field that clashes with a standard key gets a trailing underscore. Numbers and booleans keep their JSON types; other values are strings.
+
+Use the same field names for the same values: `conn_id`, `session_id`, `player_id`, `account_id`, `request_id`, `peer`, `reason`, `error`, and `elapsed_ms` (elapsed time in milliseconds).
+
+```json
+{"ts":"2026-11-21T12:00:00.123456Z","level":"INFO","env":"development","server":"gateway","instance":"1","target":"gateway::connection","msg":"connection closed","conn_id":69,"peer":"127.0.0.1:50000","reason":"auth_timeout","elapsed_ms":1000}
 ```
 
 - `non_blocking` puts the log entry on a channel and returns immediately. One background thread writes to the file. **Disk I/O doesn't block the zone thread.**

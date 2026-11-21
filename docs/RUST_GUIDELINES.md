@@ -321,18 +321,27 @@ pub async fn sell_item(pool: &PgPool, player: PlayerId, item: ItemInstanceId, pr
 ## 9. Logging and observability
 
 - No `println!`/`eprintln!`/`dbg!` (clippy blocks them). Use `tracing` macros.
-- Do not concatenate strings into logs; use structured fields.
-
-```rust
-tracing::info!(player = ?player_id, zone = ?zone_id, "player entered zone");
-```
-
-- For per-session work, attach `session_id` with `#[tracing::instrument]` or spans so logs are traceable.
+- Follow the [operations log format](design/08-operations-observability.md#41-operations-log).
 - Level criteria:
   - `error`: an operator must look at it.
   - `warn`: abnormal but handled. A client sending a malformed packet falls here.
   - `info`: connect, disconnect, major state changes.
   - `debug`/`trace`: for development.
+
+### How to log
+
+At startup, servers call `infra::process::Process::start(&config.process).await?`, which installs logging. The bot and client call `infra::logging::init(&config.process)?` in `main` and keep the returned guard until exit. `infra::logging::init` is the only logging installer. Only `infra` depends on `tracing-subscriber` and `tracing-appender`; other crates use `tracing` macros.
+
+Use `tracing::info!(field = value, "message")` with a stable message and separate fields. Use `conn_id`, `session_id`, `player_id`, `account_id`, `request_id`, `peer`, `reason`, `error`, and `elapsed_ms` for those values. Attach shared fields to a span with `in_scope` for synchronous code or `Instrument` for an async future.
+
+```rust
+tracing::info_span!("connection", conn_id = 69_u64).in_scope(|| {
+    tracing::info!(peer = "127.0.0.1:50000", "connection accepted");
+    tracing::info!(reason = "auth_timeout", elapsed_ms = 1000_u64, "connection closed");
+});
+```
+
+In C++ terms, `infra` is the shared static library with the logger class, and `tracing` macros are like `LOG_INFO` macros writing to one installed sink. A span is like a scope guard that adds context to every line logged inside its scope.
 
 ---
 
@@ -438,6 +447,20 @@ Check after finishing each change.
 - [ ] External input (packets, config) validated at the boundary
 - [ ] If a new external crate was added, the list in ch. 13 was updated
 - [ ] `pub` items have doc comments
+
+### Design review
+
+Passing tests is not enough. Check the design every time. Rust has no class inheritance, but the object-oriented habits still apply: data and the code that works on it belong together in one type, and a type is written once and used as many instances.
+
+- [ ] Anything two programs need is a type (`struct` + `impl`) in a library crate (`net`, `infra`, `db`, `protocol`, `game`). A binary only loads its config, builds those types, and adds its own behavior.
+- [ ] No code exists twice. The second time something is needed, it moves into a shared type; it is not copied.
+- [ ] Data and its behavior are in the same type. A group of free functions that keep taking the same parameters is a missing `struct`.
+- [ ] Fields are private. The constructor and the methods keep the type's rules, so a wrong state cannot be built from outside.
+- [ ] The part that varies is separated from the part that stays. Use a `trait` (an interface) when new cases will keep coming, and an `enum` when the set of cases is closed. Compose types; do not imitate inheritance.
+- [ ] One type or module has one job. If its description needs "and", split it.
+- [ ] Every piece of state has one owner. Others send it messages or borrow it. No global singletons, and no `Arc<Mutex<...>>` used to avoid deciding who owns something.
+- [ ] Start and stop belong to the type: what `new` or `bind` opens, a method or `Drop` closes. No listener, task, or file is left for the caller to remember.
+- [ ] A new server or a second listener is a new instance with a different config, not a new copy of the code.
 
 ---
 

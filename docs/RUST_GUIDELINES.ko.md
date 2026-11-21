@@ -321,18 +321,27 @@ pub async fn sell_item(pool: &PgPool, player: PlayerId, item: ItemInstanceId, pr
 ## 9. 로깅과 관측
 
 - `println!`/`eprintln!`/`dbg!`는 쓰지 않는다(clippy가 막음). `tracing` 매크로를 쓴다.
-- 로그에는 문자열을 이어 붙이지 말고 구조화된 필드를 넣는다.
-
-```rust
-tracing::info!(player = ?player_id, zone = ?zone_id, "player entered zone");
-```
-
-- 세션 단위 작업에는 `#[tracing::instrument]`나 span으로 `session_id`를 붙여서 로그를 추적할 수 있게 한다.
+- [운영 로그 형식](design/08-operations-observability.ko.md#41-운영-로그)을 따른다.
 - 레벨 기준:
   - `error`: 운영자가 확인해야 한다.
   - `warn`: 비정상이지만 처리했다. 클라이언트가 잘못된 패킷을 보낸 경우가 여기에 해당한다.
   - `info`: 접속, 종료, 주요 상태 변화.
   - `debug`/`trace`: 개발용.
+
+### 로그 쓰는 법
+
+서버는 기동할 때 `infra::process::Process::start(&config.process).await?`를 호출하며, 이 함수가 로거를 설치한다. 봇과 클라이언트는 `main`에서 `infra::logging::init(&config.process)?`를 호출하고 반환된 가드를 종료할 때까지 보관한다. 로거를 설치하는 함수는 `infra::logging::init` 하나뿐이다. `tracing-subscriber`와 `tracing-appender`는 `infra`만 의존하며, 다른 크레이트는 `tracing` 매크로를 쓴다.
+
+`tracing::info!(field = value, "message")`처럼 고정된 메시지와 필드를 따로 쓴다. 해당 값에는 `conn_id`, `session_id`, `player_id`, `account_id`, `request_id`, `peer`, `reason`, `error`, `elapsed_ms`라는 이름을 쓴다. 여러 로그에 공통으로 들어갈 필드는 스팬에 붙인다. 동기 코드는 `in_scope`, 비동기 작업은 `Instrument`를 쓴다.
+
+```rust
+tracing::info_span!("connection", conn_id = 69_u64).in_scope(|| {
+    tracing::info!(peer = "127.0.0.1:50000", "connection accepted");
+    tracing::info!(reason = "auth_timeout", elapsed_ms = 1000_u64, "connection closed");
+});
+```
+
+C++로 치면 `infra`는 로거 클래스가 들어 있는 공용 정적 라이브러리이고, `tracing` 매크로는 한 번 등록한 출력 대상으로 보내는 `LOG_INFO` 같은 매크로다. 스팬은 자기 범위에서 찍힌 모든 로그에 문맥을 붙여 주는 스코프 가드와 비슷하다.
 
 ---
 
@@ -438,6 +447,20 @@ tracing::info!(player = ?player_id, zone = ?zone_id, "player entered zone");
 - [ ] 외부 입력(패킷, 설정)은 경계에서 검증했다
 - [ ] 새 외부 크레이트를 추가했다면 13장 목록에 반영했다
 - [ ] `pub` 항목에 문서 주석이 있다
+
+### 설계 리뷰
+
+테스트가 통과하는 것으로는 부족하다. 설계를 매번 확인한다. Rust에는 클래스 상속이 없지만 객체지향의 습관은 그대로 적용된다. 데이터와 그 데이터를 다루는 코드는 한 타입에 함께 두고, 타입은 한 번 만들어 여러 인스턴스로 쓴다.
+
+- [ ] 두 프로그램이 함께 쓰는 것은 라이브러리 크레이트(`net`, `infra`, `db`, `protocol`, `game`)의 타입(`struct` + `impl`)이다. 실행 프로그램은 설정을 읽고, 그 타입들을 만들고, 자기 고유의 동작만 더한다.
+- [ ] 같은 코드가 두 곳에 없다. 두 번째로 필요해지면 복사하지 않고 공용 타입으로 옮긴다.
+- [ ] 데이터와 동작이 같은 타입에 있다. 같은 인자 묶음을 계속 받는 자유 함수들이 있으면 `struct`가 빠진 것이다.
+- [ ] 필드는 비공개다. 생성자와 메서드가 그 타입의 규칙을 지켜서, 밖에서 잘못된 상태를 만들 수 없다.
+- [ ] 바뀌는 부분과 그대로인 부분을 나눴다. 경우가 계속 늘어나면 `trait`(인터페이스)을, 경우의 집합이 닫혀 있으면 `enum`을 쓴다. 상속을 흉내 내지 않고 타입을 조합한다.
+- [ ] 타입이나 모듈 하나는 한 가지 일만 한다. 설명에 "그리고"가 필요하면 나눈다.
+- [ ] 모든 상태에는 주인이 하나다. 다른 곳에서는 메시지를 보내거나 빌려 쓴다. 전역 싱글턴을 두지 않고, 주인을 정하기 싫어서 `Arc<Mutex<...>>`를 쓰지 않는다.
+- [ ] 시작과 끝이 타입에 속한다. `new`나 `bind`가 연 것은 메서드나 `Drop`이 닫는다. 리스너, 작업, 파일을 부르는 쪽이 기억해서 닫게 두지 않는다.
+- [ ] 새 서버나 두 번째 리스너는 설정이 다른 새 인스턴스이지, 코드의 새 복사본이 아니다.
 
 ---
 

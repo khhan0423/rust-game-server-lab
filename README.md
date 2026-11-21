@@ -77,6 +77,12 @@ docs/
 
 Crates are added in the stage that first needs them. Still to come: `protocol`, `net`, `game`, `publisher` (publisher login server), `bot`, `launcher` (GUI server launcher), and `client` (GUI test client).
 
+## Where things are
+
+- `crates/` holds the source, `docs/` the design and guides, and `migrations/` the database migrations.
+- `dev/` holds local configuration, and `scripts/` holds commands to run and check the programs.
+- `logs/` holds logs by process instance, `client-data/` holds test client credentials, and `target/` holds builds and test scratch files.
+
 ## Running it
 
 You need Rust (the version is pinned in `rust-toolchain.toml`, and rustup installs it for you) and a Docker-compatible runtime for PostgreSQL 17 and Valkey 8. I use Rancher Desktop. Building also needs the Protocol Buffers compiler (`protoc`) on the PATH.

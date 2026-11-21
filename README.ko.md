@@ -77,6 +77,12 @@ docs/
 
 크레이트는 처음 필요한 단계에서 만듭니다. 앞으로 `protocol`, `net`, `game`, `publisher`(퍼블리셔 로그인 서버), `bot`, `launcher`(GUI 서버 런처), `client`(GUI 테스트 클라이언트)가 생깁니다.
 
+## 파일 위치
+
+- `crates/`에는 소스 코드, `docs/`에는 설계와 가이드, `migrations/`에는 DB 마이그레이션 파일이 있다.
+- `dev/`에는 로컬 개발 설정, `scripts/`에는 프로그램 실행과 검증에 쓰는 스크립트가 있다.
+- `logs/`에는 프로세스 인스턴스별 로그, `client-data/`에는 테스트 클라이언트 인증 정보, `target/`에는 빌드 결과와 테스트 임시 파일이 들어간다.
+
 ## 돌려 보기
 
 Rust(버전은 `rust-toolchain.toml`에 고정돼 있고 rustup이 알아서 설치합니다)와, PostgreSQL 17과 Valkey 8을 띄울 Docker 호환 런타임이 필요합니다. 저는 Rancher Desktop을 씁니다. 빌드하려면 Protocol Buffers 컴파일러(`protoc`)도 PATH에 있어야 합니다.
