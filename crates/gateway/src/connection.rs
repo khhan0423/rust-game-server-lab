@@ -1,5 +1,5 @@
 use net::{CloseCause, CloseLabel, Connection, ConnectionHandler, Frame, FrameCodec, Outbox};
-use protocol::{ClientPacket, MessageId, ServerPacket, wire};
+use protocol::{ClientPacket, HandshakeClose, MessageId, ServerPacket, wire};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy)]
@@ -18,10 +18,10 @@ impl CloseLabel for Reason {
     ];
     fn label(self) -> &'static str {
         match self {
-            Self::AuthTimeout => "auth_timeout",
-            Self::AuthFailed => "auth_failed",
+            Self::AuthTimeout => HandshakeClose::AuthTimeout.label(),
+            Self::AuthFailed => HandshakeClose::AuthFailed.label(),
             Self::ResumeUnknown => "resume_unknown",
-            Self::UpdateRequired => "update_required",
+            Self::UpdateRequired => HandshakeClose::UpdateRequired.label(),
         }
     }
 }

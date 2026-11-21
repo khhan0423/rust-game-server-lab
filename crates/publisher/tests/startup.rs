@@ -65,7 +65,7 @@ async fn publisher_serves_guest_creation_login_and_single_use_verification(pool:
         .await
         .unwrap();
     let admin = child.addr("admin").unwrap();
-    let api = child.addr("api").unwrap();
+    let api = child.addr("http").unwrap();
     let client = Client::builder().timeout(WAIT).build().unwrap();
     let ready = client
         .get(format!("http://{admin}/health/ready"))
@@ -76,6 +76,23 @@ async fn publisher_serves_guest_creation_login_and_single_use_verification(pool:
     let create = format!("http://{api}/v1/guest/accounts");
     let login = format!("http://{api}/v1/guest/login");
     let verify = format!("http://{api}/v1/tickets/verify");
+
+    assert_error(
+        client.get(&create).send().await.unwrap(),
+        StatusCode::METHOD_NOT_ALLOWED,
+        "method_not_allowed",
+    )
+    .await;
+    assert_error(
+        client
+            .get(format!("http://{api}/v1/unknown"))
+            .send()
+            .await
+            .unwrap(),
+        StatusCode::NOT_FOUND,
+        "not_found",
+    )
+    .await;
 
     let response = client.post(&create).json(&json!({})).send().await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);

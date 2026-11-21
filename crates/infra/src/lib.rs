@@ -4,6 +4,7 @@
 
 pub mod admin;
 pub mod config;
+pub mod hex;
 pub mod http;
 pub mod logging;
 pub mod process;

@@ -3,20 +3,22 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{Request, State};
+use axum::http::StatusCode;
+use axum::middleware::{self, Next};
+use axum::response::Response;
 use axum::routing::post;
 use axum::{Json, Router};
 use db::login::{
     self, AccountId, EntryGrant, GameId, GuestCredentials, GuestId, GuestSecret, LoginOutcome,
     Ticket,
 };
+use infra::hex::Hex;
 use infra::http::api::{ApiError, ApiJson, ApiKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::config::GameConfig;
-use crate::credentials::{decode, encode, random_bytes};
 
 pub(super) struct AppState {
     pub(super) pool: db::Pool,
@@ -29,8 +31,25 @@ pub(super) fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/v1/guest/accounts", post(create_guest))
         .route("/v1/guest/login", post(login_guest))
-        .route("/v1/tickets/verify", post(verify_ticket))
+        .route(
+            "/v1/tickets/verify",
+            post(verify_ticket).route_layer(middleware::from_fn_with_state(
+                Arc::clone(&state),
+                authenticate,
+            )),
+        )
+        .fallback(ApiError::not_found)
+        .method_not_allowed_fallback(ApiError::method_not_allowed)
         .with_state(state)
+}
+
+async fn authenticate(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    state.key.verify(request.headers())?;
+    Ok(next.run(request).await)
 }
 
 #[derive(Deserialize)]
@@ -79,7 +98,7 @@ async fn create_guest(
     let CreateRequest {} = request.into_inner();
     let account_id = AccountId::new(Uuid::now_v7());
     let guest_id = GuestId::new(Uuid::now_v7());
-    let secret = GuestSecret::new(random_bytes().map_err(ApiError::internal)?);
+    let secret = GuestSecret::new(Hex::random().map_err(ApiError::internal)?);
     login::create_guest(
         &state.pool,
         &account_id,
@@ -95,7 +114,7 @@ async fn create_guest(
         StatusCode::CREATED,
         Json(Created {
             guest_id: guest_id.to_string(),
-            secret: encode(secret.expose()),
+            secret: Hex::encode(secret.expose()),
         }),
     ))
 }
@@ -106,12 +125,12 @@ async fn login_guest(
 ) -> Result<Json<LoggedIn>, ApiError> {
     let request: LoginRequest = request.into_inner();
     let guest_id = GuestId::parse(&request.guest_id).map_err(|_| ApiError::INVALID)?;
-    let secret = GuestSecret::new(decode(&request.secret).ok_or(ApiError::INVALID)?);
+    let secret = GuestSecret::new(Hex::decode(&request.secret).ok_or(ApiError::INVALID)?);
     let (game_id, game) = state
         .games
         .get_key_value(request.game_id.as_str())
         .ok_or(ApiError::new(StatusCode::NOT_FOUND, "unknown_game"))?;
-    let ticket = Ticket::new(random_bytes().map_err(ApiError::internal)?);
+    let ticket = Ticket::new(Hex::random().map_err(ApiError::internal)?);
     let outcome = login::login_guest(
         &state.pool,
         &GuestCredentials {
@@ -149,7 +168,7 @@ async fn login_guest(
         "game entry issued"
     );
     Ok(Json(LoggedIn {
-        ticket: encode(ticket.expose()),
+        ticket: Hex::encode(ticket.expose()),
         expires_in_secs: state.ttl_secs,
         entry_url: game.entry_url.clone(),
     }))
@@ -157,12 +176,10 @@ async fn login_guest(
 
 async fn verify_ticket(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    request: Result<ApiJson<VerifyRequest>, ApiError>,
+    request: ApiJson<VerifyRequest>,
 ) -> Result<Json<Verified>, ApiError> {
-    state.key.verify(&headers)?;
-    let request = request?.into_inner();
-    let ticket = Ticket::new(decode(&request.ticket).ok_or(ApiError::INVALID)?);
+    let request = request.into_inner();
+    let ticket = Ticket::new(Hex::decode(&request.ticket).ok_or(ApiError::INVALID)?);
     let (game_id, _) = state
         .games
         .get_key_value(request.game_id.as_str())

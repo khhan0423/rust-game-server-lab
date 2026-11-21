@@ -88,7 +88,7 @@ impl Secret {
 
 impl fmt::Debug for Secret {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Secret(***)")
+        f.write_str("[redacted]")
     }
 }
 

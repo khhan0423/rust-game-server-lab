@@ -37,7 +37,7 @@ struct Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let mut config: ToolConfig = infra::config::load(&args.config)?;
-    config.process.instance = args.profile.to_string().try_into()?;
+    config.process.set_instance(args.profile.to_string())?;
     let _log_guard = logging::init(&config.process).context("start client operation logging")?;
     let profile_path = args.profile.path(&args.data_dir);
     let credentials = profile::load(&profile_path).context("load guest profile")?;

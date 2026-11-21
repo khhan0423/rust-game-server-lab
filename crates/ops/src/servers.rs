@@ -8,11 +8,11 @@ use axum::Router;
 use axum::extract::State;
 use axum::response::Response;
 use axum::routing::get;
-use infra::admin::{LIVE, METRICS, READY};
+use infra::admin::{LIVE, READY, SERVER_READY};
 
 use crate::AppState;
 use crate::config::WatchedServer;
-use crate::pages::render;
+use crate::presentation::render;
 
 use crate::metrics::{RUNTIME_METRICS, samples};
 
@@ -58,11 +58,14 @@ async fn table(State(state): State<Arc<AppState>>) -> Response {
 }
 
 async fn load(state: &AppState) -> Vec<ServerRow> {
-    let mut rows = Vec::with_capacity(state.servers.len());
-    for server in &state.servers {
-        rows.push(poll(&state.client, server).await);
-    }
-    rows
+    crate::metrics::poll_in_order(
+        state
+            .servers
+            .iter()
+            .map(|server| poll(&state.client, server))
+            .collect(),
+    )
+    .await
 }
 
 async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
@@ -71,7 +74,7 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
     let (live, ready, metrics) = tokio::join!(
         client.get(format!("{root}{LIVE}")).send(),
         client.get(format!("{root}{READY}")).send(),
-        client.get(format!("{root}{METRICS}")).send(),
+        server.scrape(client),
     );
     let liveness = if live.is_ok_and(|response| response.status().is_success()) {
         "up"
@@ -83,37 +86,34 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
     } else {
         "not ready"
     };
-    let metrics = match metrics.and_then(reqwest::Response::error_for_status) {
-        Ok(response) => match response.text().await {
-            Ok(body) => {
-                let priority = [
-                    "server_ready",
-                    RUNTIME_METRICS[0],
-                    RUNTIME_METRICS[1],
-                    RUNTIME_METRICS[2],
-                    "net_connections_current",
-                ];
-                let samples = samples(&body)
-                    .filter(|sample| {
-                        sample.labels.is_none()
-                            || (sample.name == "net_connections_current"
-                                && sample.label("listener") == Some("client"))
-                    })
-                    .collect::<Vec<_>>();
-                priority
-                    .into_iter()
-                    .filter_map(|name| samples.iter().find(|sample| sample.name == name))
-                    .chain(
-                        samples
-                            .iter()
-                            .filter(|sample| !priority.contains(&sample.name))
-                            .take(4),
-                    )
-                    .map(|sample| (sample.name.to_owned(), sample.value.to_owned()))
-                    .collect()
-            }
-            Err(_) => Vec::new(),
-        },
+    let metrics = match metrics {
+        Ok(body) => {
+            let priority = [
+                SERVER_READY,
+                RUNTIME_METRICS[0],
+                RUNTIME_METRICS[1],
+                RUNTIME_METRICS[2],
+                "net_connections_current",
+            ];
+            let samples = samples(&body)
+                .filter(|sample| {
+                    sample.labels.is_none()
+                        || (sample.name == "net_connections_current"
+                            && sample.label("listener") == Some("client"))
+                })
+                .collect::<Vec<_>>();
+            priority
+                .into_iter()
+                .filter_map(|name| samples.iter().find(|sample| sample.name == name))
+                .chain(
+                    samples
+                        .iter()
+                        .filter(|sample| !priority.contains(&sample.name))
+                        .take(4),
+                )
+                .map(|sample| (sample.name.to_owned(), sample.value.to_owned()))
+                .collect()
+        }
         Err(_) => Vec::new(),
     };
     ServerRow {

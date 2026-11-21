@@ -102,11 +102,9 @@ async fn exchange(socket: &mut TcpStream, scenario: Scenario) -> anyhow::Result<
         anyhow::bail!("unexpected server packet during handshake")
     };
     let reason = wire::CloseReason::try_from(close.reason)?;
-    if matches!(
-        (reason, scenario),
-        (wire::CloseReason::IdleTimeout, Scenario::ConnectHold)
-    ) {
-        return Ok("auth_timeout");
+    if reason == wire::CloseReason::IdleTimeout {
+        // The bot never proceeds beyond the handshake; this is not a session idle timeout.
+        return Ok(protocol::HandshakeClose::AuthTimeout.label());
     }
     protocol::close_reason_label(reason)
         .ok_or_else(|| anyhow::anyhow!("server sent an unspecified close reason"))

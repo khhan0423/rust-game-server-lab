@@ -8,10 +8,52 @@ use std::{
 };
 
 use axum::Router;
+use reqwest::Url;
 use serde::Deserialize;
 use tokio::net::TcpListener;
 
 use crate::shutdown::Shutdown;
+
+/// A cleartext HTTP origin containing no credentials, path or parameters.
+#[derive(Debug)]
+pub struct HttpOrigin(Url);
+
+/// The input does not describe a permitted HTTP origin.
+#[derive(Debug, thiserror::Error)]
+#[error("expected an HTTP origin without credentials, path or parameters")]
+pub struct InvalidHttpOrigin;
+
+impl HttpOrigin {
+    /// Parses an HTTP origin, applying the listener's network policy to restricted origins.
+    pub fn parse(url: &str, exposure: Exposure) -> Result<Self, InvalidHttpOrigin> {
+        let url = Url::parse(url).map_err(|_| InvalidHttpOrigin)?;
+        if url.scheme() != "http"
+            || url.host().is_none()
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.path() != "/"
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(InvalidHttpOrigin);
+        }
+        match exposure {
+            Exposure::Public => Ok(Self(url)),
+            Exposure::Loopback | Exposure::Private => url
+                .host_str()
+                .and_then(|host| host.trim_matches(['[', ']']).parse().ok())
+                .filter(|&ip| exposure.permits(ip))
+                .map_or(Err(InvalidHttpOrigin), |_| Ok(Self(url))),
+        }
+    }
+
+    /// Builds a request URL for a route on this origin.
+    pub fn route(&self, path: &str) -> Url {
+        let mut url = self.0.clone();
+        url.set_path(path);
+        url
+    }
+}
 
 /// Address of an HTTP service in its TOML section.
 #[derive(Debug, Deserialize)]

@@ -1,6 +1,7 @@
 //! Operations HTTP service composition.
 use crate::{
-    AppState, config, config::WatchedServer, connections, pages, publisher, security, servers,
+    AppState, config, config::WatchedServer, connections, pages, presentation, publisher, security,
+    servers,
 };
 use anyhow::Context;
 use axum::{Router, middleware, response::Redirect, routing::get};
@@ -43,6 +44,7 @@ pub(super) async fn start(
         .merge(servers::routes())
         .merge(connections::routes())
         .merge(pages::routes())
+        .merge(presentation::assets())
         .layer(middleware::from_fn_with_state(
             Arc::clone(&state),
             security::headers,

@@ -2,7 +2,10 @@
 
 mod status;
 
-pub use status::{SanctionStatus, StatusChange, StatusOutcome, set_status};
+pub use status::{
+    AttributionError, AuditReason, OperatorName, SanctionStatus, StatusChange, StatusOutcome,
+    set_status,
+};
 
 use super::{AccountId, AccountStatus, GUEST_PROVIDER, GameId, MembershipStatus};
 use crate::{DbError, Pool};

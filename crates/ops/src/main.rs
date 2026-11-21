@@ -4,6 +4,7 @@ mod config;
 mod connections;
 mod metrics;
 mod pages;
+mod presentation;
 mod publisher;
 mod security;
 mod servers;

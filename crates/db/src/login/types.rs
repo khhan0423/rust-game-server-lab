@@ -79,7 +79,7 @@ impl GuestSecret {
 
 impl fmt::Debug for GuestSecret {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("GuestSecret(***)")
+        f.write_str("[redacted]")
     }
 }
 
@@ -100,7 +100,7 @@ impl Ticket {
 
 impl fmt::Debug for Ticket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Ticket(***)")
+        f.write_str("[redacted]")
     }
 }
 

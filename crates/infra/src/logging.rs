@@ -30,50 +30,19 @@ pub enum Environment {
     Live,
 }
 
-/// Kind of process writing the operations log.
-#[derive(Debug, Clone, Copy, Deserialize, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ProcessName {
-    /// Publisher login server.
-    Publisher,
-    /// Game server.
-    Game,
-    /// Gateway server.
-    Gateway,
-    /// Operations tool.
-    Ops,
-    /// Headless test bot.
-    Bot,
-    /// Desktop test client.
-    Client,
-}
-
-impl ProcessName {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Publisher => "publisher",
-            Self::Game => "game",
-            Self::Gateway => "gateway",
-            Self::Ops => "ops",
-            Self::Bot => "bot",
-            Self::Client => "client",
-        }
-    }
-}
-
 /// A short label that can be used inside a log directory name.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "String")]
-pub struct Instance(String);
+struct LogLabel(String);
 
-impl Default for Instance {
+impl Default for LogLabel {
     fn default() -> Self {
         Self("1".into())
     }
 }
 
-impl TryFrom<String> for Instance {
-    type Error = InvalidInstance;
+impl TryFrom<String> for LogLabel {
+    type Error = InvalidLogLabel;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.is_empty()
@@ -82,26 +51,26 @@ impl TryFrom<String> for Instance {
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
         {
-            return Err(InvalidInstance);
+            return Err(InvalidLogLabel);
         }
         Ok(Self(value))
     }
 }
 
-/// The instance label cannot be used in a log directory name.
+/// The log label cannot be used in a log directory name.
 #[derive(Debug, thiserror::Error)]
-#[error("instance must be 1 to 64 ASCII letters, numbers, dashes, or underscores")]
-pub struct InvalidInstance;
+#[error("log label must be 1 to 64 ASCII letters, numbers, dashes, or underscores")]
+pub struct InvalidLogLabel;
 
 /// Identity and operations log settings kept in the `[process]` table.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LogConfig {
     /// Kind of process writing the log.
-    pub name: ProcessName,
+    name: LogLabel,
     /// Instance label, or the client profile name.
     #[serde(default)]
-    pub instance: Instance,
+    instance: LogLabel,
     /// Deployment stage.
     pub environment: Environment,
     /// Root containing one directory per process instance.
@@ -116,9 +85,15 @@ fn default_log_root() -> PathBuf {
 }
 
 impl LogConfig {
+    /// Sets the log instance to a checked directory label.
+    pub fn set_instance(&mut self, name: String) -> Result<(), InvalidLogLabel> {
+        self.instance = name.try_into()?;
+        Ok(())
+    }
+
     fn directory(&self) -> PathBuf {
         self.log_root
-            .join(format!("{}-{}", self.name.as_str(), self.instance.0))
+            .join(format!("{}-{}", self.name.0, self.instance.0))
     }
 }
 

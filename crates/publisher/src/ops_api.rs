@@ -11,11 +11,11 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
-use db::login::{AccountId, ops};
-use infra::http::api::{
-    ApiError, ApiJson, ApiKey,
-    operator::{AuditReason, NAME_HEADER, OperatorName},
+use db::login::{
+    AccountId,
+    ops::{self, AttributionError, AuditReason, OperatorName},
 };
+use infra::http::api::{ApiError, ApiJson, ApiKey, operator::NAME_HEADER};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -31,6 +31,8 @@ pub(super) fn router(pool: db::Pool, key: ApiKey) -> Router {
         .route("/v1/accounts/{id}", get(detail))
         .route("/v1/accounts/{id}/status", post(set_status))
         .route("/v1/audit", get(audit))
+        .fallback(ApiError::not_found)
+        .method_not_allowed_fallback(ApiError::method_not_allowed)
         .layer(middleware::from_fn_with_state(
             Arc::clone(&state),
             authenticate,
@@ -54,7 +56,7 @@ async fn authenticate(
         .unwrap_or_default();
     let operator = match OperatorName::try_from(value) {
         Ok(value) => value,
-        Err(error) => return error.into_response(),
+        Err(error) => return attribution_error(error).into_response(),
     };
     request.extensions_mut().insert(operator);
     next.run(request).await
@@ -72,6 +74,15 @@ impl Listing {
     fn window(&self) -> Result<ops::Page, ApiError> {
         ops::Page::new(self.page.unwrap_or(1), Self::PAGE_SIZE)
             .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "invalid_page"))
+    }
+
+    fn project<T, U>(mut rows: Vec<T>) -> (Vec<U>, bool)
+    where
+        U: From<T>,
+    {
+        let has_next = rows.len() > Self::PAGE_SIZE;
+        rows.truncate(Self::PAGE_SIZE);
+        (rows.into_iter().map(Into::into).collect(), has_next)
     }
 }
 
@@ -95,15 +106,11 @@ async fn accounts(
     query: Result<Query<Listing>, QueryRejection>,
 ) -> Result<Json<Accounts>, ApiError> {
     let Query(query) = query.map_err(|_| ApiError::INVALID)?;
-    let mut rows = ops::accounts(&state.pool, query.search.as_deref(), query.window()?)
+    let rows = ops::accounts(&state.pool, query.search.as_deref(), query.window()?)
         .await
         .map_err(ApiError::internal)?;
-    let has_next = rows.len() > Listing::PAGE_SIZE;
-    rows.truncate(Listing::PAGE_SIZE);
-    Ok(Json(Accounts {
-        accounts: rows.into_iter().map(Into::into).collect(),
-        has_next,
-    }))
+    let (accounts, has_next) = Listing::project(rows);
+    Ok(Json(Accounts { accounts, has_next }))
 }
 
 async fn audit(
@@ -111,15 +118,11 @@ async fn audit(
     query: Result<Query<Listing>, QueryRejection>,
 ) -> Result<Json<Audit>, ApiError> {
     let Query(query) = query.map_err(|_| ApiError::INVALID)?;
-    let mut rows = ops::audit(&state.pool, query.window()?)
+    let rows = ops::audit(&state.pool, query.window()?)
         .await
         .map_err(ApiError::internal)?;
-    let has_next = rows.len() > Listing::PAGE_SIZE;
-    rows.truncate(Listing::PAGE_SIZE);
-    Ok(Json(Audit {
-        records: rows.into_iter().map(Into::into).collect(),
-        has_next,
-    }))
+    let (records, has_next) = Listing::project(rows);
+    Ok(Json(Audit { records, has_next }))
 }
 
 async fn detail(
@@ -160,10 +163,9 @@ async fn set_status(
         Status::Active => ops::SanctionStatus::Active,
         Status::Sanctioned => ops::SanctionStatus::Sanctioned,
     };
-    let reason = AuditReason::try_from(change.reason.as_str())?;
+    let reason = AuditReason::try_from(change.reason.as_str()).map_err(attribution_error)?;
     let id = AccountId::new(id);
-    let change = ops::StatusChange::new(status, operator.as_str(), reason.as_str())
-        .ok_or(ApiError::INVALID)?;
+    let change = ops::StatusChange::new(status, &operator, reason);
     match ops::set_status(&state.pool, &id, &change)
         .await
         .map_err(ApiError::internal)?
@@ -175,4 +177,12 @@ async fn set_status(
         }
         ops::StatusOutcome::Closing => Err(ApiError::new(StatusCode::CONFLICT, "account_closing")),
     }
+}
+
+fn attribution_error(error: AttributionError) -> ApiError {
+    let code = match error {
+        AttributionError::Operator => "operator_required",
+        AttributionError::Reason => "reason_required",
+    };
+    ApiError::new(StatusCode::BAD_REQUEST, code)
 }

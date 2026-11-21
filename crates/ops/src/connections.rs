@@ -5,12 +5,11 @@ use axum::Router;
 use axum::extract::State;
 use axum::response::Response;
 use axum::routing::get;
-use infra::admin::METRICS;
 
 use crate::AppState;
-use crate::config::ServerRole;
-use crate::metrics::{RUNTIME_METRICS, samples};
-use crate::pages::render;
+use crate::config::{ServerRole, WatchedServer};
+use crate::metrics::{RUNTIME_METRICS, poll_in_order, samples};
+use crate::presentation::render;
 
 #[derive(Template)]
 #[template(path = "connections.html")]
@@ -54,34 +53,29 @@ async fn table(State(state): State<Arc<AppState>>) -> Response {
 }
 
 async fn load(state: &AppState) -> Vec<Gateway> {
-    let mut rows = Vec::new();
-    for server in state
-        .servers
-        .iter()
-        .filter(|server| server.role == Some(ServerRole::Gateway))
-    {
-        let mut row = Gateway {
-            name: server.name.clone(),
-            address: server.admin_addr,
-            status: "down",
-            totals: Vec::new(),
-            rejected: Vec::new(),
-            closed: Vec::new(),
-        };
-        let response = state
-            .client
-            .get(format!("http://{}{METRICS}", server.admin_addr))
-            .send()
-            .await;
-        if let Ok(response) = response.and_then(reqwest::Response::error_for_status)
-            && let Ok(body) = response.text().await
-        {
-            row.status = "up";
-            row.collect(&body);
-        }
-        rows.push(row);
-    }
-    rows
+    poll_in_order(
+        state
+            .servers
+            .iter()
+            .filter(|server: &&WatchedServer| server.role == Some(ServerRole::Gateway))
+            .map(|server: &WatchedServer| async move {
+                let mut row = Gateway {
+                    name: server.name.clone(),
+                    address: server.admin_addr,
+                    status: "down",
+                    totals: Vec::new(),
+                    rejected: Vec::new(),
+                    closed: Vec::new(),
+                };
+                if let Ok(body) = server.scrape(&state.client).await {
+                    row.status = "up";
+                    row.collect(&body);
+                }
+                row
+            })
+            .collect(),
+    )
+    .await
 }
 
 impl Gateway {

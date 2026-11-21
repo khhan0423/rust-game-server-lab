@@ -1,35 +1,26 @@
-//! Publisher pages and shared HTML presentation.
+//! Publisher account and audit pages.
 
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 use askama::Template;
 use axum::Router;
 use axum::extract::{Form, Path, Query, State};
-use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
+use infra::http::api::ErrorBody;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
+use crate::presentation::render;
 use crate::publisher::{AccountStatus, Accounts, Audit, Detail, SanctionStatus};
-
-const HTMX: &[u8] = include_bytes!("../assets/htmx.min.js");
-const CSS: &str = include_str!("../assets/ops.css");
 
 pub(super) fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/accounts", get(accounts))
         .route("/accounts/{id}", get(detail).post(change))
         .route("/audit", get(audit))
-        .route(
-            "/static/htmx.min.js",
-            get(|| async { ([(header::CONTENT_TYPE, "text/javascript")], HTMX) }),
-        )
-        .route(
-            "/static/ops.css",
-            get(|| async { ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], CSS) }),
-        )
 }
 
 #[derive(Template)]
@@ -62,13 +53,19 @@ struct AuditPage<'a> {
 #[template(path = "error.html")]
 struct ErrorPage<'a> {
     operator: &'a str,
-    message: &'static str,
+    message: &'a str,
 }
 
 #[derive(Deserialize)]
 struct Listing {
-    page: Option<u32>,
+    page: Option<NonZeroU32>,
     search: Option<String>,
+}
+
+impl Listing {
+    fn page(&self) -> u32 {
+        self.page.unwrap_or(NonZeroU32::MIN).get()
+    }
 }
 
 struct Paging {
@@ -106,14 +103,7 @@ struct Change<'a> {
 
 async fn accounts(State(state): State<Arc<AppState>>, Query(query): Query<Listing>) -> Response {
     let operator = state.publisher.operator();
-    let page = query.page.unwrap_or(1);
-    if page == 0 {
-        return error(
-            operator,
-            StatusCode::BAD_REQUEST,
-            "Page numbers start at one.",
-        );
-    }
+    let page = query.page();
     // IDs are UUIDs, so the canonical value can be carried in a paging link.
     let search = query.search.as_deref().unwrap_or_default().trim();
     let search = if search.is_empty() {
@@ -197,40 +187,42 @@ async fn change(
             "This request did not pass the form security check.",
         );
     }
-    let Ok(reason) = infra::http::api::operator::AuditReason::try_from(form.reason.as_str()) else {
-        return error(
-            operator,
-            StatusCode::BAD_REQUEST,
-            "Enter a reason up to 1,000 characters.",
-        );
-    };
     let path = format!("/v1/accounts/{id}/status");
     match state
         .publisher
         .request(Method::POST, &path)
         .json(&Change {
             status: form.status,
-            reason: reason.as_str(),
+            reason: &form.reason,
         })
         .send()
         .await
-        .and_then(reqwest::Response::error_for_status)
     {
-        Ok(_) => Redirect::to(&format!("/accounts/{id}")).into_response(),
+        Ok(response) if response.status().is_success() => {
+            Redirect::to(&format!("/accounts/{id}")).into_response()
+        }
+        Ok(response) if response.status().is_client_error() => {
+            let status = response.status();
+            match response.json::<ErrorBody>().await {
+                Ok(rejection) => error(operator, status, rejection.code()),
+                Err(failure) => upstream(operator, &failure),
+            }
+        }
+        Ok(response) => match response.error_for_status() {
+            Ok(_) => error(
+                operator,
+                StatusCode::BAD_GATEWAY,
+                "Unexpected publisher response.",
+            ),
+            Err(failure) => upstream(operator, &failure),
+        },
         Err(error) => upstream(operator, &error),
     }
 }
 
 async fn audit(State(state): State<Arc<AppState>>, Query(query): Query<Listing>) -> Response {
     let operator = state.publisher.operator();
-    let page = query.page.unwrap_or(1);
-    if page == 0 {
-        return error(
-            operator,
-            StatusCode::BAD_REQUEST,
-            "Page numbers start at one.",
-        );
-    }
+    let page = query.page();
     let response = match state
         .publisher
         .request(Method::GET, "/v1/audit")
@@ -274,16 +266,6 @@ fn upstream(operator: &str, failure: &reqwest::Error) -> Response {
     error(operator, status, message)
 }
 
-fn error(operator: &str, status: StatusCode, message: &'static str) -> Response {
+fn error(operator: &str, status: StatusCode, message: &str) -> Response {
     (status, render(&ErrorPage { operator, message })).into_response()
-}
-
-pub(super) fn render(template: &impl Template) -> Response {
-    match template.render() {
-        Ok(html) => Html(html).into_response(),
-        Err(error) => {
-            tracing::error!(%error, "operations page rendering failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, "Page rendering failed").into_response()
-        }
-    }
 }

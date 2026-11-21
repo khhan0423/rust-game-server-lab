@@ -135,19 +135,19 @@ impl Listener {
         window.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let shutdown = shutdown.cancelled();
         tokio::pin!(shutdown);
-        loop {
+        let result = loop {
             tokio::select! {
                 biased;
-                () = &mut shutdown => break,
+                () = &mut shutdown => break Ok(()),
                 _ = window.tick() => per_ip.clear(),
                 Some(joined) = connections.join_next(), if !connections.is_empty() => report_task_error(joined),
                 accepted = listener.accept() => {
                     let (socket, peer) = match accepted {
                         Ok(accepted) => accepted,
                         Err(error) => {
-                            tracing::warn!(%error, "client accept failed");
+                            tracing::warn!(%error, listener=self.metrics.name, "listener accept failed");
                             tokio::select! {
-                                () = &mut shutdown => break,
+                                () = &mut shutdown => break Ok(()),
                                 () = tokio::time::sleep(Duration::from_millis(100)) => continue,
                             }
                         }
@@ -167,15 +167,14 @@ impl Listener {
                         continue;
                     }
                     let Some(id) = last_id.checked_add(1) else {
-                        tracing::error!("connection IDs exhausted");
-                        break;
+                        break Err(io::Error::other("connection IDs exhausted"));
                     };
                     last_id = id;
                     let accepted_at = Instant::now();
                     connections.spawn(connection::serve(socket, connection::Peer { id: ConnId::new(id), addr: peer, accepted: accepted_at }, config, Arc::clone(&self.metrics), Arc::clone(&handler), closing.clone()));
                 }
             }
-        }
+        };
         drop(listener);
         closing.cancel();
         if tokio::time::timeout(connection::FLUSH_TIMEOUT + Duration::from_secs(1), async {
@@ -189,7 +188,7 @@ impl Listener {
             tracing::warn!("connection shutdown deadline elapsed");
             connections.shutdown().await;
         }
-        Ok(())
+        result
     }
 }
 

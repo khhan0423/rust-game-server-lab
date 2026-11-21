@@ -8,7 +8,7 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
     let mut child = ServerProcess::spawn(&mut publisher("operator", &pool).await)
         .await
         .unwrap();
-    let api = child.addr("api").unwrap();
+    let api = child.addr("http").unwrap();
     let ops = child.addr("ops_api").unwrap();
     let client = Client::builder().timeout(WAIT).build().unwrap();
     let accounts = format!("http://{ops}/v1/accounts");
@@ -23,16 +23,17 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
             StatusCode::UNAUTHORIZED
         );
     }
-    assert_eq!(
+    assert_error(
         client
             .get(&accounts)
             .header(KEY_HEADER, OPS_KEY)
             .send()
             .await
-            .unwrap()
-            .status(),
-        StatusCode::BAD_REQUEST
-    );
+            .unwrap(),
+        StatusCode::BAD_REQUEST,
+        "operator_required",
+    )
+    .await;
 
     let guest: Value = client
         .post(format!("http://{api}/v1/guest/accounts"))
@@ -114,16 +115,24 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
     }
 
     let reason = "Test account violated policy";
-    assert_error(
-        authorized(reqwest::Method::POST, &format!("{detail_url}/status"))
-            .json(&json!({"bad":true}))
-            .send()
-            .await
-            .unwrap(),
-        StatusCode::BAD_REQUEST,
-        "invalid_request",
-    )
-    .await;
+    for (body, code) in [
+        (json!({"bad":true}), "invalid_request"),
+        (
+            json!({"status":"sanctioned", "reason":"   "}),
+            "reason_required",
+        ),
+    ] {
+        assert_error(
+            authorized(reqwest::Method::POST, &format!("{detail_url}/status"))
+                .json(&body)
+                .send()
+                .await
+                .unwrap(),
+            StatusCode::BAD_REQUEST,
+            code,
+        )
+        .await;
+    }
     let result: Value = authorized(reqwest::Method::POST, &format!("{detail_url}/status"))
         .json(&json!({"status": "sanctioned", "reason": reason}))
         .send()

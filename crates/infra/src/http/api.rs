@@ -10,7 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::de::DeserializeOwned;
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 
 /// Public API failure with a stable machine-readable error code.
 #[derive(Debug, thiserror::Error)]
@@ -18,6 +18,24 @@ use serde_json::{Map, Value, json};
 pub struct ApiError {
     status: StatusCode,
     code: &'static str,
+}
+
+/// Stable JSON error envelope returned by an API, independent of its code vocabulary.
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct ErrorBody<T = String> {
+    error: T,
+}
+
+impl<T> ErrorBody<T> {
+    /// Returns the code supplied by the API.
+    pub fn code(&self) -> &T {
+        &self.error
+    }
+
+    /// Extracts the code from the response body.
+    pub fn into_code(self) -> T {
+        self.error
+    }
 }
 
 impl ApiError {
@@ -29,6 +47,19 @@ impl ApiError {
     /// Rejection for malformed request bodies, paths, or query fields.
     pub const INVALID: Self = Self::new(StatusCode::BAD_REQUEST, "invalid_request");
 
+    /// Reports an unmatched route on a JSON API.
+    pub fn not_found() -> std::future::Ready<Self> {
+        std::future::ready(Self::new(StatusCode::NOT_FOUND, "not_found"))
+    }
+
+    /// Reports an unsupported method on a JSON API route.
+    pub fn method_not_allowed() -> std::future::Ready<Self> {
+        std::future::ready(Self::new(
+            StatusCode::METHOD_NOT_ALLOWED,
+            "method_not_allowed",
+        ))
+    }
+
     /// Records an internal failure without returning implementation details to callers.
     pub fn internal(error: impl std::fmt::Display) -> Self {
         tracing::error!(%error, "API operation failed");
@@ -38,7 +69,7 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, Json(json!({"error": self.code}))).into_response()
+        (self.status, Json(ErrorBody { error: self.code })).into_response()
     }
 }
 

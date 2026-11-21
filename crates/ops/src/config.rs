@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use infra::admin::METRICS;
 use infra::http::HttpConfig;
 use infra::logging::Environment;
 use infra::process::ProcessConfig;
@@ -35,6 +36,18 @@ pub(super) struct WatchedServer {
     pub(super) name: String,
     pub(super) admin_addr: SocketAddr,
     pub(super) role: Option<ServerRole>,
+}
+
+impl WatchedServer {
+    pub(super) async fn scrape(&self, client: &reqwest::Client) -> Result<String, reqwest::Error> {
+        client
+            .get(format!("http://{}{METRICS}", self.admin_addr))
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

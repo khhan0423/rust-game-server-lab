@@ -9,7 +9,10 @@ use metrics_exporter_prometheus::{BuildError, PrometheusBuilder};
 use serde::Deserialize;
 use tokio::task::{JoinError, JoinSet};
 
-use crate::admin::{AdminListener, Readiness};
+use crate::admin::{
+    AdminListener, RUNTIME_ALIVE_TASKS, RUNTIME_GLOBAL_QUEUE_DEPTH, RUNTIME_WORKERS, Readiness,
+    SERVER_READY,
+};
 use crate::logging::{self, LogConfig, LogError, WorkerGuard};
 use crate::runtime::RuntimeConfig;
 
@@ -18,7 +21,7 @@ use crate::runtime::RuntimeConfig;
 #[serde(deny_unknown_fields)]
 pub struct ProcessConfig {
     /// Admin port address. Use only private network addresses.
-    pub admin_addr: SocketAddr,
+    admin_addr: SocketAddr,
     /// Process identity and operations log settings.
     #[serde(flatten)]
     pub log: LogConfig,
@@ -53,8 +56,14 @@ pub enum ProcessError {
         source: std::io::Error,
     },
     /// A supervised service failed.
-    #[error("service failed")]
-    Service(#[source] std::io::Error),
+    #[error("{name} service failed")]
+    Service {
+        /// Name of the supervised service.
+        name: &'static str,
+        /// Error returned by the service.
+        #[source]
+        source: std::io::Error,
+    },
     /// A supervised task terminated abnormally.
     #[error("service task stopped unexpectedly")]
     ServiceTask(#[source] JoinError),
@@ -72,16 +81,14 @@ pub(crate) struct Process {
     readiness: Readiness,
     admin_addr: SocketAddr,
     shutdown: Shutdown,
-    _log: WorkerGuard,
 }
 
 impl Process {
-    /// Turns on logging and metrics and opens the admin port. At this point only `/health/live` returns 200.
+    /// Turns on metrics and opens the admin port. Readiness starts false.
     pub(crate) async fn start(
         config: &ProcessConfig,
-        tasks: &mut JoinSet<std::io::Result<()>>,
+        tasks: &mut JoinSet<Result<(), ProcessError>>,
     ) -> Result<Self, ProcessError> {
-        let log = logging::init(&config.log)?;
         let metrics = PrometheusBuilder::new().install_recorder()?;
         let listener = AdminListener::bind(config.admin_addr)
             .await
@@ -99,13 +106,22 @@ impl Process {
             sample_runtime(runtime, stop).await;
             Ok(())
         });
-        tasks.spawn(listener.serve(readiness.clone(), metrics, shutdown.clone()));
+        let admin = listener.serve(readiness.clone(), metrics, shutdown.clone());
+        tasks.spawn(async move {
+            admin.await.map_err(|source| ProcessError::Service {
+                name: "admin",
+                source,
+            })
+        });
         Ok(Self {
             readiness,
             admin_addr,
             shutdown,
-            _log: log,
         })
+    }
+
+    pub(crate) fn init_log(config: &ProcessConfig) -> Result<WorkerGuard, ProcessError> {
+        Ok(logging::init(&config.log)?)
     }
 
     /// Announces readiness with additional named listener addresses on the same line.
@@ -116,7 +132,7 @@ impl Process {
         let line = crate::ready::ReadyLine::new(self.admin_addr, listeners)
             .map_err(ProcessError::Announce)?;
         self.readiness.set_ready();
-        metrics::gauge!("server_ready").set(1.0);
+        metrics::gauge!(SERVER_READY).set(1.0);
         let mut stdout = std::io::stdout().lock();
         writeln!(stdout, "{line}")
             .and_then(|()| stdout.flush())
@@ -131,7 +147,7 @@ impl Process {
     /// Clears readiness before asking all supervised workers to drain.
     pub(crate) fn stop(&self) {
         self.readiness.set_not_ready();
-        metrics::gauge!("server_ready").set(0.0);
+        metrics::gauge!(SERVER_READY).set(0.0);
         self.shutdown.cancel();
     }
 
@@ -160,7 +176,7 @@ async fn sample_runtime(runtime: tokio::runtime::RuntimeMetrics, shutdown: Shutd
     reason = "A runtime cannot hold 2^53 tasks or workers"
 )]
 fn record_runtime_metrics(runtime: &tokio::runtime::RuntimeMetrics) {
-    metrics::gauge!("runtime_workers").set(runtime.num_workers() as f64);
-    metrics::gauge!("runtime_alive_tasks").set(runtime.num_alive_tasks() as f64);
-    metrics::gauge!("runtime_global_queue_depth").set(runtime.global_queue_depth() as f64);
+    metrics::gauge!(RUNTIME_WORKERS).set(runtime.num_workers() as f64);
+    metrics::gauge!(RUNTIME_ALIVE_TASKS).set(runtime.num_alive_tasks() as f64);
+    metrics::gauge!(RUNTIME_GLOBAL_QUEUE_DEPTH).set(runtime.global_queue_depth() as f64);
 }

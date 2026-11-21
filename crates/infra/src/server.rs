@@ -1,6 +1,6 @@
 //! Process lifecycle shared by independent servers.
 
-use std::{fmt::Display, io, net::SocketAddr};
+use std::{error::Error, fmt::Display, io, net::SocketAddr};
 
 use axum::Router;
 use tokio::task::{JoinError, JoinSet};
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Server {
     process: Process,
-    tasks: JoinSet<io::Result<()>>,
+    tasks: JoinSet<Result<(), ProcessError>>,
     addresses: Vec<(&'static str, SocketAddr)>,
 }
 
@@ -35,7 +35,7 @@ impl Server {
         self.addresses.push((name, addr));
         self.tasks.spawn(async move {
             task.await
-                .map_err(|error| io::Error::new(error.kind(), format!("{name} listener: {error}")))
+                .map_err(|source| ProcessError::Service { name, source })
         });
     }
 
@@ -55,7 +55,7 @@ impl Server {
             signal = Shutdown::signal() => signal.map_err(ProcessError::Signal),
             Some(task) = self.tasks.join_next() => {
                 task_result(task)?;
-                Err(ProcessError::Service(io::Error::other("service stopped before shutdown")))
+                Err(ProcessError::Service { name: "supervised", source: io::Error::other("service stopped before shutdown") })
             }
         }
     }
@@ -70,9 +70,21 @@ impl Server {
     }
 }
 
-fn task_result(task: Result<io::Result<()>, JoinError>) -> Result<(), ProcessError> {
+fn task_result(task: Result<Result<(), ProcessError>, JoinError>) -> Result<(), ProcessError> {
     task.map_err(ProcessError::ServiceTask)?
-        .map_err(ProcessError::Service)
+}
+
+fn error_chain(error: &ProcessError) -> String {
+    let mut message = error.to_string();
+    let mut cause = error.source();
+    while let Some(error) = cause {
+        use std::fmt::Write;
+        if write!(message, ": {error}").is_err() {
+            break;
+        }
+        cause = error.source();
+    }
+    message
 }
 
 /// Starts the admin port, runs the startup barrier, supervises listeners and drains them.
@@ -85,9 +97,14 @@ where
     E: From<ProcessError> + From<io::Error> + Display,
     F: Future<Output = ()>,
 {
+    let _log = Process::init_log(config)?;
     config.runtime().build()?.block_on(async {
         let mut tasks = JoinSet::new();
-        let process = Process::start(config, &mut tasks).await?;
+        let process = Process::start(config, &mut tasks)
+            .await
+            .inspect_err(|error| {
+                tracing::error!(error = error_chain(error), "startup failed");
+            })?;
         let mut server = Server {
             process,
             tasks,
@@ -98,13 +115,15 @@ where
                 let service = server.supervise().await;
                 let stopped = server.stop().await;
                 finish.await;
-                service.and(stopped)?;
+                service.and(stopped).inspect_err(|error| {
+                    tracing::error!(error = error_chain(error), "server failed");
+                })?;
                 Ok(())
             }
             Err(error) => {
                 tracing::error!(error = format!("{error:#}"), "startup failed");
                 if let Err(stop) = server.stop().await {
-                    tracing::error!(%stop, "startup cleanup failed");
+                    tracing::error!(error = error_chain(&stop), "startup cleanup failed");
                 }
                 Err(error)
             }
@@ -151,7 +170,7 @@ mod tests {
             })
         });
         assert!(
-            matches!(result, Err(TestError::Process(ProcessError::Service(error))) if error.to_string().contains("listener failed"))
+            matches!(result, Err(TestError::Process(ProcessError::Service { name: "failing", source })) if source.to_string().contains("listener failed"))
         );
         Ok(())
     }

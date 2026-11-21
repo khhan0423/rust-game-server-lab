@@ -19,6 +19,15 @@ pub const READY: &str = "/health/ready";
 /// Prometheus scrape path.
 pub const METRICS: &str = "/metrics";
 
+/// Gauge for the readiness state published by the process.
+pub const SERVER_READY: &str = "server_ready";
+/// Gauge for the number of runtime worker threads.
+pub const RUNTIME_WORKERS: &str = "runtime_workers";
+/// Gauge for tasks alive in the runtime.
+pub const RUNTIME_ALIVE_TASKS: &str = "runtime_alive_tasks";
+/// Gauge for tasks waiting in the runtime's global queue.
+pub const RUNTIME_GLOBAL_QUEUE_DEPTH: &str = "runtime_global_queue_depth";
+
 /// Shared flag indicating "may this process accept work". It starts in the not-ready state.
 #[derive(Debug, Clone, Default)]
 pub struct Readiness(Arc<AtomicBool>);

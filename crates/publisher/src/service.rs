@@ -26,7 +26,7 @@ async fn startup_barrier(config: &Config) -> anyhow::Result<Startup> {
     let ops_key = ApiKey::from_env(operator::KEY_HEADER, operator::KEY_ENV)?;
     let url = Secret::from_env(LOGIN_DB_URL_ENV)?;
     let pool = db::open(url.expose(), &config.db, &LOGIN_MIGRATOR).await?;
-    let listener = HttpListener::bind("api", &config.http, Exposure::Public)
+    let listener = HttpListener::bind("http", &config.http, Exposure::Public)
         .await
         .context("binding publisher API listener")?;
     let operator = HttpListener::bind("ops_api", &config.ops_api, Exposure::Loopback)

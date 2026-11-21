@@ -2,7 +2,6 @@
 
 mod api;
 mod config;
-mod credentials;
 mod ops_api;
 mod service;
 mod wire;

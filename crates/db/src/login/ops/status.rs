@@ -12,36 +12,73 @@ pub enum SanctionStatus {
     Sanctioned,
 }
 
+/// Why an operator change cannot be attributed.
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+pub enum AttributionError {
+    /// The supplied operator name does not meet the audit requirements.
+    #[error("operator name must be 1 to 128 printable ASCII bytes after trimming")]
+    Operator,
+    /// The supplied reason does not meet the audit requirements.
+    #[error("audit reason must be 1 to 1000 characters after trimming, without NUL")]
+    Reason,
+}
+
+/// Validated name recorded on an operator change.
+#[derive(Debug, Clone)]
+pub struct OperatorName(String);
+
+impl TryFrom<&str> for OperatorName {
+    type Error = AttributionError;
+
+    fn try_from(text: &str) -> Result<Self, Self::Error> {
+        let text = text.trim();
+        if text.is_empty() || text.len() > 128 || !text.bytes().all(|b| (b' '..=b'~').contains(&b))
+        {
+            return Err(AttributionError::Operator);
+        }
+        Ok(Self(text.to_owned()))
+    }
+}
+
+/// Validated explanation recorded on an operator change.
+#[derive(Debug)]
+pub struct AuditReason<'a>(&'a str);
+
+impl<'a> TryFrom<&'a str> for AuditReason<'a> {
+    type Error = AttributionError;
+
+    fn try_from(text: &'a str) -> Result<Self, Self::Error> {
+        let text = text.trim();
+        if text.is_empty() || text.contains('\0') || text.chars().count() > 1000 {
+            return Err(AttributionError::Reason);
+        }
+        Ok(Self(text))
+    }
+}
+
 /// Requested platform state and operator attribution.
 #[derive(Debug)]
 pub struct StatusChange<'a> {
     /// New state.
     status: SanctionStatus,
     /// Who requested the change.
-    operator: &'a str,
+    operator: &'a OperatorName,
     /// Why the change was requested.
-    reason: &'a str,
+    reason: AuditReason<'a>,
 }
 
 impl<'a> StatusChange<'a> {
-    /// Validates the attribution before opening a database transaction.
-    pub fn new(status: SanctionStatus, operator: &'a str, reason: &'a str) -> Option<Self> {
-        let operator = operator.trim();
-        let reason = reason.trim();
-        if operator.is_empty()
-            || operator.len() > 128
-            || !operator.bytes().all(|b| (b' '..=b'~').contains(&b))
-            || reason.is_empty()
-            || reason.contains('\0')
-            || reason.chars().count() > 1000
-        {
-            return None;
-        }
-        Some(Self {
+    /// Builds a change from validated attribution.
+    pub const fn new(
+        status: SanctionStatus,
+        operator: &'a OperatorName,
+        reason: AuditReason<'a>,
+    ) -> Self {
+        Self {
             status,
             operator,
             reason,
-        })
+        }
     }
 }
 
@@ -104,11 +141,11 @@ pub async fn set_status(
     sqlx::query!(
         "INSERT INTO ops_audit (operator, action, account_id, before_status, after_status, reason)
          VALUES ($1, 'set_status', $2, $3, $4, $5)",
-        change.operator,
+        change.operator.0.as_str(),
         id.to_string(),
         before as _,
         after as _,
-        change.reason,
+        change.reason.0,
     )
     .execute(&mut *tx)
     .await?;

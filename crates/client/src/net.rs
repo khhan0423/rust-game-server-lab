@@ -5,7 +5,9 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use bevy::prelude::Resource;
-use reqwest::{Client, StatusCode, Url};
+use infra::hex::Hex;
+use infra::http::{Exposure, HttpOrigin, api::ErrorBody};
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
@@ -91,40 +93,9 @@ enum RequestError {
     #[error("Publisher response did not match the login API (HTTP {0})")]
     InvalidResponse(StatusCode),
     #[error("Publisher returned {0} (HTTP {1})")]
-    Server(ServerCode, StatusCode),
+    Server(String, StatusCode),
     #[error("The client window closed")]
     WindowClosed,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum ServerCode {
-    InvalidRequest,
-    InvalidCredentials,
-    Unauthorized,
-    AccountBlocked,
-    UnknownGame,
-    TicketInvalid,
-    InternalError,
-}
-
-impl std::fmt::Display for ServerCode {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::InvalidRequest => "invalid_request",
-            Self::InvalidCredentials => "invalid_credentials",
-            Self::Unauthorized => "unauthorized",
-            Self::AccountBlocked => "account_blocked",
-            Self::UnknownGame => "unknown_game",
-            Self::TicketInvalid => "ticket_invalid",
-            Self::InternalError => "internal_error",
-        })
-    }
-}
-
-#[derive(Deserialize)]
-struct ErrorBody {
-    error: ServerCode,
 }
 
 #[derive(Serialize)]
@@ -207,7 +178,7 @@ impl Worker {
         let reply: LoginReply = self
             .post(&credentials.publisher_url, Route::LogIn, &body)
             .await?;
-        if reply.ticket.len() != 64 || !reply.ticket.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if Hex::decode::<32>(&reply.ticket).is_none() {
             return Err(RequestError::InvalidResponse(StatusCode::OK));
         }
         Ok(Outcome::LoggedIn(Ticket {
@@ -228,18 +199,9 @@ impl Worker {
             Route::Create => (ACCOUNTS, StatusCode::CREATED),
             Route::LogIn => (LOGIN, StatusCode::OK),
         };
-        let mut url = Url::parse(publisher_url).map_err(|_| RequestError::InvalidPublisher)?;
-        if url.scheme() != "http"
-            || url.host().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-            || url.path() != "/"
-        {
-            return Err(RequestError::InvalidPublisher);
-        }
-        url.set_path(path);
+        let url = HttpOrigin::parse(publisher_url, Exposure::Public)
+            .map_err(|_| RequestError::InvalidPublisher)?
+            .route(path);
         self.updates
             .send(Event::Sent(path))
             .await
@@ -284,7 +246,7 @@ impl Worker {
                     RequestError::InvalidResponse(status)
                 }
             })?;
-            Err(RequestError::Server(body.error, status))
+            Err(RequestError::Server(body.into_code(), status))
         }
     }
 }

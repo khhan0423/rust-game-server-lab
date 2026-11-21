@@ -1,10 +1,27 @@
 //! Prometheus sample fields used by the monitoring pages.
 
+use infra::admin::{RUNTIME_ALIVE_TASKS, RUNTIME_GLOBAL_QUEUE_DEPTH, RUNTIME_WORKERS};
+
 pub(super) const RUNTIME_METRICS: [&str; 3] = [
-    "runtime_workers",
-    "runtime_alive_tasks",
-    "runtime_global_queue_depth",
+    RUNTIME_WORKERS,
+    RUNTIME_ALIVE_TASKS,
+    RUNTIME_GLOBAL_QUEUE_DEPTH,
 ];
+
+pub(super) async fn poll_in_order<T>(polls: Vec<impl Future<Output = T>>) -> Vec<T> {
+    let mut polls = polls.into_iter();
+    let mut rows = Vec::new();
+    // The list is configured locally. Process two endpoints at a time and keep its order.
+    while let Some(first) = polls.next() {
+        if let Some(second) = polls.next() {
+            let (first, second) = tokio::join!(first, second);
+            rows.extend([first, second]);
+        } else {
+            rows.push(first.await);
+        }
+    }
+    rows
+}
 
 #[derive(Debug)]
 pub(super) struct Sample<'a> {

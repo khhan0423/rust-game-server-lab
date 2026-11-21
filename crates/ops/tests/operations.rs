@@ -110,7 +110,7 @@ async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgP
     let guest: Value = client
         .post(format!(
             "http://{}/v1/guest/accounts",
-            publisher.addr("api").unwrap()
+            publisher.addr("http").unwrap()
         ))
         .json(&json!({}))
         .send()
@@ -144,7 +144,7 @@ async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgP
         .unwrap()
         .0;
     let reason = "integration-review";
-    let send = |request_origin, token| {
+    let send = |request_origin, token, reason| {
         client
             .post(&detail)
             .header("Origin", request_origin)
@@ -153,14 +153,23 @@ async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgP
             .send()
     };
     assert_eq!(
-        send("http://foreign.test", token).await.unwrap().status(),
+        send("http://foreign.test", token, reason)
+            .await
+            .unwrap()
+            .status(),
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        send(origin.as_str(), "wrong-token").await.unwrap().status(),
+        send(origin.as_str(), "wrong-token", reason)
+            .await
+            .unwrap()
+            .status(),
         StatusCode::FORBIDDEN
     );
-    let changed = send(origin.as_str(), token).await.unwrap();
+    let rejected = send(origin.as_str(), token, "").await.unwrap();
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+    assert!(rejected.text().await.unwrap().contains("reason_required"));
+    let changed = send(origin.as_str(), token, reason).await.unwrap();
     assert_eq!(changed.status(), StatusCode::OK);
     assert!(
         changed

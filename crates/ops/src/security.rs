@@ -7,7 +7,7 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use rand::TryRng;
+use infra::hex::Hex;
 use reqwest::Url;
 
 use crate::AppState;
@@ -20,9 +20,6 @@ pub(super) struct Security {
 
 impl Security {
     pub(super) fn new(addr: SocketAddr) -> anyhow::Result<Self> {
-        let mut rng = rand::rngs::SysRng;
-        let first = rng.try_next_u64()?;
-        let second = rng.try_next_u64()?;
         let authority = addr.to_string();
         let origin = Url::parse(&format!("http://{addr}"))?
             .origin()
@@ -30,7 +27,7 @@ impl Security {
         Ok(Self {
             authority,
             origin,
-            token: format!("{first:016x}{second:016x}"),
+            token: Hex::encode(&Hex::random::<16>()?),
         })
     }
 

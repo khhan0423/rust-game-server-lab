@@ -15,7 +15,7 @@ use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 
-use super::{Environment, LogConfig, ProcessName};
+use super::{Environment, LogConfig};
 
 const STANDARD: [&str; 7] = ["ts", "level", "env", "server", "instance", "target", "msg"];
 
@@ -103,7 +103,7 @@ impl FormatFields<'_> for SpanFields {
 
 pub(super) struct Line {
     env: Environment,
-    server: ProcessName,
+    server: String,
     instance: String,
 }
 
@@ -111,7 +111,7 @@ impl From<&LogConfig> for Line {
     fn from(config: &LogConfig) -> Self {
         Self {
             env: config.environment,
-            server: config.name,
+            server: config.name.0.clone(),
             instance: config.instance.0.clone(),
         }
     }

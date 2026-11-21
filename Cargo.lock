@@ -3079,6 +3079,7 @@ dependencies = [
  "axum",
  "metrics",
  "metrics-exporter-prometheus",
+ "rand 0.10.4",
  "reqwest",
  "serde",
  "serde_json",

@@ -1,53 +1,36 @@
 //! Typed HTTP client for the publisher's operator API.
 
-use std::net::IpAddr;
-
 use anyhow::Context;
 use axum::http::HeaderValue;
-use infra::http::api::{
-    ApiKey,
-    operator::{self, OperatorName},
+use infra::http::{
+    Exposure, HttpOrigin,
+    api::{ApiKey, operator},
 };
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub(super) struct Client {
     http: reqwest::Client,
-    url: Url,
+    origin: HttpOrigin,
     headers: axum::http::HeaderMap,
-    operator: OperatorName,
+    operator: String,
 }
 
 impl Client {
     pub(super) fn new(client: reqwest::Client, url: &str, operator: &str) -> anyhow::Result<Self> {
-        let url = Url::parse(url).context("invalid publisher operator API URL")?;
-        let loopback = url
-            .host_str()
-            .and_then(|host| host.trim_matches(['[', ']']).parse::<IpAddr>().ok())
-            .is_some_and(|ip| ip.is_loopback());
-        anyhow::ensure!(
-            loopback
-                && url.scheme() == "http"
-                && url.path() == "/"
-                && url.query().is_none()
-                && url.fragment().is_none()
-                && url.username().is_empty()
-                && url.password().is_none(),
-            "publisher operator API must be a loopback HTTP origin"
-        );
-        let operator = OperatorName::try_from(operator)?;
+        let origin = HttpOrigin::parse(url, Exposure::Loopback)
+            .context("publisher operator API must be a loopback HTTP origin")?;
         let mut headers = axum::http::HeaderMap::new();
         headers.insert(
             operator::NAME_HEADER,
-            HeaderValue::from_str(operator.as_str())?,
+            HeaderValue::from_bytes(operator.as_bytes())?,
         );
         ApiKey::from_env(operator::KEY_HEADER, operator::KEY_ENV)?.insert(&mut headers);
         Ok(Self {
             http: client,
-            url,
+            origin,
             headers,
-            operator,
+            operator: operator.to_owned(),
         })
     }
 
@@ -56,9 +39,9 @@ impl Client {
     }
 
     pub(super) fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
-        let mut url = self.url.clone();
-        url.set_path(path);
-        self.http.request(method, url).headers(self.headers.clone())
+        self.http
+            .request(method, self.origin.route(path))
+            .headers(self.headers.clone())
     }
 }
 
