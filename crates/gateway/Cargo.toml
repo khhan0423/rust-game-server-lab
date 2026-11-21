@@ -6,10 +6,15 @@ publish.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+bytes = { workspace = true }
 clap = { workspace = true }
 infra = { workspace = true }
+metrics = { workspace = true }
+net = { workspace = true }
+protocol = { workspace = true }
 serde = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-util = { workspace = true, features = ["codec"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
