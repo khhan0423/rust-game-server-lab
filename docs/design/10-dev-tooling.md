@@ -102,6 +102,24 @@ port = 7100
 - Don't put secrets such as DB connection details in this file. Pass them through environment variables (Document 08, Section 8).
 - Change shard and server counts at startup to reproduce scenarios such as "3 shards, 3 users" exactly.
 
+### 3.3 Each Server Runs on Its Own; the Launcher Only Helps (owner decision, 2026-11-20)
+
+The launcher is a convenience on top of servers that already start by themselves. It is never the only way to start one.
+
+- **Every server has its own config file.** One TOML file per server under `dev/config/` (`publisher.toml`, `server.toml`, `gateway.toml`, `ops.toml`). A server reads only its own file. Secrets stay in environment variables.
+- **Every server has its own run script.** `scripts/run-<server>.sh` and `.ps1` load the environment and start that one server with its config file. A server must start with no other server running, and report what it is waiting for instead of failing in a confusing way.
+- **The launcher uses the same config files and the same commands as the scripts.** It adds order, status, logs, and the buttons to stop, restart, and kill.
+
+Beyond starting servers, the launcher is where these jobs live:
+
+| Job | What it means |
+|---|---|
+| Patch design data | Apply a new design data bundle (design 11) to running servers: validate it, tell the servers to reload, and show which servers took it |
+| Start with data from a chosen folder | Start the server set against a design data folder picked in the launcher, so a planner's working copy or an older bundle can be tried without touching the default one |
+| Start a chosen version | Keep several built versions side by side and start the server set from one of them, for example to reproduce a bug on last week's build |
+
+These three depend on design data (design 11) and on built versions being kept in separate folders, so they arrive after the basic launcher.
+
 ## 4. Test Client (`bot` Crate)
 
 ### 4.1 What It Does

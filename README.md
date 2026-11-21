@@ -15,7 +15,7 @@ This is not a finished game or a framework. Design documents, plans, and code ar
 
 The project is at the pilot stage: verifying the skeleton of the design before building content on top of it. The full plan is in [docs/plan/README.md](docs/plan/README.md).
 
-What exists today is a Cargo workspace with eight crates. The game server and the gateway are still skeletons, but they already refuse to come up when the database is missing, the schema is out of date, or a secret is missing. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
+What exists today is a Cargo workspace with nine crates. The game server and the gateway are still skeletons, but they already refuse to come up when the database is missing, the schema is out of date, or a secret is missing. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. The operations tool is a web page that shows which servers are up, lists accounts, sanctions or restores an account, and keeps a record of every operator action. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
 
 The message definitions and the frame codec are written and tested, but not yet wired into the servers. Next up are the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. The launcher, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
 
@@ -62,6 +62,7 @@ crates/
   net/        frame codec and server-to-server envelope codec
   gateway/    gateway binary
   publisher/  publisher login server binary (guest login, entry tickets)
+  ops/        operations tool, a web server (server status, accounts, audit)
   client/     GUI test client (Bevy and egui)
 migrations/   database migrations
 dev/          PostgreSQL and Valkey for development
@@ -95,11 +96,12 @@ scripts/gate.sh        # Windows PowerShell: scripts/gate.ps1
 
 Tests run against a real PostgreSQL. They start the actual server processes, and they also check that a server refuses to start when startup cannot complete: no database, schema mismatch, or a missing secret.
 
-To try the login flow, start the login server and the test client in two terminals. Both need the variables from `.env` in the environment. Run the `migrate` command once before the first start.
+To try the login flow, start the login server and the test client in two terminals. Every server has its own config file under `dev/config/` and its own run script under `scripts/` (`.sh` and `.ps1`), and starts without the others. The scripts load `.env` for you. Run the `migrate` command once before the first start.
 
 ```sh
-cargo run -p publisher -- --config dev/config/publisher.toml migrate
-cargo run -p publisher -- --config dev/config/publisher.toml run
+scripts/run-publisher.sh migrate     # once
+scripts/run-publisher.sh run
+scripts/run-ops.sh                   # operations tool at http://127.0.0.1:18300
 cargo run -p client -- --profile alice
 ```
 

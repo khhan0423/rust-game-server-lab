@@ -61,6 +61,7 @@ Server/
 │  ├─ infra/             # Common operational code: config loading, log init, metrics, admin port. Depends on no other crate
 │  ├─ gateway/           # Gateway binary (design 02)
 │  ├─ publisher/         # Publisher login server binary (design 07). Separate from game crates. Uses only the Login DB
+│  ├─ ops/               # Operations tool web server (design 12). Depends only on infra; reaches data through operator APIs
 │  ├─ server/            # Binary. Runs the Game server, battle server, cluster services as roles. tokio, wiring
 │  ├─ bot/               # Headless test/load bot binary. Reference implementation of the session contract
 │  ├─ client/            # GUI test client (Bevy + bevy_egui, design 10)

@@ -76,6 +76,10 @@ Two separate tools, deployed and authenticated separately. They share no databas
 
 The game operations tool is built as a minimal version (server status, notices, maintenance, kick, grants) right after the pilot's cross-shard messaging stage, rather than waiting for the late operations stage of development. The full tool grows from it.
 
+**Starting as one program (owner direction, 2026-11-20).** While one person develops the game, the two tools start life as a single web server, the `ops` crate. It is a server like the others: it has its own config file and run script, and the launcher starts it with the rest. Its navigation keeps the game screens and the publisher screens in separate groups, and it reaches account data only through the publisher's operator API, so splitting it into the two tools described above is a matter of deployment. The split happens before the beta.
+
+The environment comes from the tool's config file, not from a choice made in the tool. In the development environment the tool listens on the local machine only and signs in the operator named in its config, so that audit records still say who acted. With any other environment name the tool refuses to start until the real operator sign-on in section 8 exists.
+
 ## 7. Stack
 
 Decided on 2026-11-20: both tools use `axum` with Askama templates compiled at build time, plus htmx for partial updates.
