@@ -33,3 +33,18 @@ The dev environment runs inside Rancher Desktop: PostgreSQL and Valkey as contai
 - Language: English is primary and Korean is secondary for repository-facing text. README, commit messages, and repository metadata are written in English; a Korean version of a document lives next to it as `name.ko.md`.
 - Never name or reference any project outside this repository (names, code identifiers, internal details) in docs, code, or commit messages.
 - When you introduce a Rust concept the owner may not know (lifetimes, trait objects, `Pin`, macros), explain it briefly in your report, relating it to the C++ equivalent.
+
+## Reporting to the owner
+
+Every report that closes a piece of work uses the same eight parts, in this order, written in Korean and in plain words. A part with nothing to say stays in the report with "없음", so the owner can tell "nothing" from "forgotten".
+
+1. **결론** (conclusion): whether it worked and how far it got, in one or two sentences.
+2. **바뀐 것** (what changed): the visible changes, three or four lines.
+3. **확인한 방법** (how it was checked), always split in three: what was run and seen directly, what only automated tests covered, and what was not checked.
+4. **제가 정한 것** (decided without asking): details settled without the owner, with the reason.
+5. **문제와 위험** (problems and risks): failures, temporary handling, anything unresolved.
+6. **정해 주실 것** (decisions needed): for each question, why it must be decided and the recommendation.
+7. **다음** (next): the next step in one or two lines.
+8. **기록** (record): date, commit, and gate results on Windows and Linux with test counts.
+
+Keep a report within one screen and point to documents for detail. Do not use coded labels. Never mix "seen directly" with "covered by tests".
