@@ -15,7 +15,7 @@ This is not a finished game or a framework. Design documents, plans, and code ar
 
 The project is at the pilot stage: verifying the skeleton of the design before building content on top of it. The full plan is in [docs/plan/README.md](docs/plan/README.md).
 
-What exists today is a Cargo workspace with nine crates. The game server and the gateway are still skeletons, but they already refuse to come up when the database is missing, the schema is out of date, or a secret is missing. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. The operations tool is a web page that shows which servers are up, lists accounts, sanctions or restores an account, and keeps a record of every operator action. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
+What exists today is a Cargo workspace with ten crates. The game server is still a skeleton, but it already refuses to come up when the database is missing, the schema is out of date, or a secret is missing. The gateway accepts client connections, reads and writes frames, and closes connections that do not authenticate in time. It cannot let anyone in yet, because the entry server that issues login tokens does not exist. A headless bot opens thousands of connections against it for smoke and stress runs, and the gateway reports its connections and runtime threads as metrics. The publisher login server works: it creates guest accounts, logs them in, and hands out short-lived single-use entry tickets that the game side can verify. The GUI test client opens a window where you can create a guest account and log in against that server. The operations tool is a web page that shows which servers are up, lists accounts, sanctions or restores an account, and keeps a record of every operator action. Around these sit a dev environment for the databases and a quality gate. It builds and passes its tests on Windows (MSVC) and on Linux. The Linux run happens in a container.
 
 The message definitions and the frame codec are written and tested, but not yet wired into the servers. Next up are the entry server and gateway sessions, so that a ticket from the login server actually gets a client into a game server. The launcher, bot, battle server, zones, and actual content come after that, in the order laid out in the plan.
 
@@ -62,7 +62,8 @@ crates/
   net/        frame codec and server-to-server envelope codec
   gateway/    gateway binary
   publisher/  publisher login server binary (guest login, entry tickets)
-  ops/        operations tool, a web server (server status, accounts, audit)
+  ops/        operations tool, a web server (server status, connections, accounts, audit)
+  bot/        headless bot that opens many connections (smoke and stress runs)
   client/     GUI test client (Bevy and egui)
 migrations/   database migrations
 dev/          PostgreSQL and Valkey for development
@@ -106,6 +107,13 @@ cargo run -p client -- --profile alice
 ```
 
 In the client window, press "Create guest account" and then "Log in". Each profile keeps its own guest account under `client-data/`, so several clients can run side by side.
+
+A quick check that the connection path still works, and a heavier one:
+
+```sh
+scripts/smoke.sh       # starts the gateway, connects 70 bots, checks the counters, stops everything
+scripts/stress.sh      # 2,000 connections by default; prints the bot summary and the gateway's metrics
+```
 
 The servers are meant to run on Linux, so the same gate also runs in a Linux container on the same runtime:
 
