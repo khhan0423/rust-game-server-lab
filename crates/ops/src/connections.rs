@@ -5,11 +5,12 @@ use axum::Router;
 use axum::extract::State;
 use axum::response::Response;
 use axum::routing::get;
+use infra::admin::METRICS;
 
 use crate::AppState;
 use crate::config::ServerRole;
+use crate::metrics::{RUNTIME_METRICS, samples};
 use crate::pages::render;
-use crate::servers::{RUNTIME_METRICS, samples};
 
 #[derive(Template)]
 #[template(path = "connections.html")]
@@ -69,7 +70,7 @@ async fn load(state: &AppState) -> Vec<Gateway> {
         };
         let response = state
             .client
-            .get(format!("http://{}/metrics", server.admin_addr))
+            .get(format!("http://{}{METRICS}", server.admin_addr))
             .send()
             .await;
         if let Ok(response) = response.and_then(reqwest::Response::error_for_status)
@@ -87,34 +88,37 @@ impl Gateway {
     fn collect(&mut self, text: &str) {
         let samples = samples(text).collect::<Vec<_>>();
         for name in [
-            "gateway_connections_current",
-            "gateway_connections_accepted_total",
-            "gateway_frames_received_total",
-            "gateway_frames_sent_total",
-            "gateway_bytes_received_total",
-            "gateway_bytes_sent_total",
+            "net_connections_current",
+            "net_connections_accepted_total",
+            "net_frames_received_total",
+            "net_frames_sent_total",
+            "net_bytes_received_total",
+            "net_bytes_sent_total",
         ]
         .into_iter()
         .chain(RUNTIME_METRICS)
         {
-            if let Some(sample) = samples
-                .iter()
-                .find(|sample| sample.name == name && sample.labels.is_none())
-            {
+            if let Some(sample) = samples.iter().find(|sample| {
+                sample.name == name
+                    && if name.starts_with("net_") {
+                        sample.label("listener") == Some("client")
+                    } else {
+                        sample.labels.is_none()
+                    }
+            }) {
                 self.totals.push((name, sample.value.to_owned()));
             }
         }
         for sample in samples {
-            let Some(reason) = sample
-                .labels
-                .and_then(|labels| labels.strip_prefix("reason=\""))
-                .and_then(|label| label.strip_suffix('"'))
-            else {
+            if sample.label("listener") != Some("client") {
+                continue;
+            }
+            let Some(reason) = sample.label("reason") else {
                 continue;
             };
             let series = match sample.name {
-                "gateway_connections_rejected_total" => &mut self.rejected,
-                "gateway_connections_closed_total" => &mut self.closed,
+                "net_connections_rejected_total" => &mut self.rejected,
+                "net_connections_closed_total" => &mut self.closed,
                 _ => continue,
             };
             series.push((reason.to_owned(), sample.value.to_owned()));

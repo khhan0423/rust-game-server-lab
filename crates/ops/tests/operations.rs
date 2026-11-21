@@ -1,67 +1,31 @@
 //! Operations flow through both real HTTP servers and a disposable `LoginDB`.
 
-#![expect(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    reason = "test fixture failures fail the test"
-)]
-
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use std::time::Duration;
+#![expect(clippy::unwrap_used, reason = "test fixture failures fail the test")]
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};
 use sqlx::{ConnectOptions, PgPool};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use testkit::{GatewayFixture, ServerProcess, TestDir, WAIT, sibling_binary};
+use tokio::process::Command;
 
-const WAIT: Duration = Duration::from_secs(60);
 const OPS_KEY: &str = "operations-integration-key";
 
-fn publisher_binary() -> PathBuf {
-    Path::new(env!("CARGO_BIN_EXE_ops"))
-        .with_file_name(format!("publisher{}", std::env::consts::EXE_SUFFIX))
-}
-
-async fn announce(child: &mut Child) -> String {
-    let stdout = child.stdout.take().unwrap();
-    tokio::time::timeout(WAIT, BufReader::new(stdout).lines().next_line())
-        .await
-        .unwrap()
-        .unwrap()
-        .expect("process exited before readiness")
-}
-
-fn address(announcement: &str, name: &str) -> SocketAddr {
-    assert!(announcement.starts_with("ready "));
-    announcement
-        .split_ascii_whitespace()
-        .filter_map(|field| field.split_once('='))
-        .find_map(|(field, addr)| (field == name).then_some(addr))
-        .unwrap()
-        .parse()
-        .unwrap()
-}
-
-async fn publisher(dir: &Path, pool: &PgPool) -> Child {
-    let path = dir.join("publisher.toml");
-    tokio::fs::write(
-        &path,
-        format!(
+async fn publisher(dir: &TestDir, pool: &PgPool) -> ServerProcess {
+    let path = dir.write(
+        "publisher.toml",
+        &format!(
             "[process]\nname='publisher'\nenvironment='development'\nadmin_addr='127.0.0.1:0'\nlog_root='{}'\nlog_level='info'\n\
          [db]\nmax_connections=2\nacquire_timeout_ms=3000\n\
          [http]\nlisten_addr='127.0.0.1:0'\n\
          [ops_api]\nlisten_addr='127.0.0.1:0'\n\
          [games.lab]\nentry_url='http://127.0.0.1:18200'\n",
-            dir.join("logs").display(),
+            dir.path().join("logs").display(),
         ),
     )
     .await
     .unwrap();
     let command = || {
-        let mut command = Command::new(publisher_binary());
+        let mut command = Command::new(sibling_binary(env!("CARGO_BIN_EXE_ops"), "publisher"));
         command
             .arg("--config")
             .arg(&path)
@@ -74,55 +38,29 @@ async fn publisher(dir: &Path, pool: &PgPool) -> Child {
             .kill_on_drop(true);
         command
     };
-    let migrated = tokio::time::timeout(WAIT, command().arg("migrate").status())
+    let migrated = ServerProcess::finished(command().arg("migrate"))
         .await
-        .unwrap()
         .unwrap();
-    assert!(migrated.success());
-    command()
-        .arg("run")
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("build publisher before running ops tests")
+    assert!(migrated.status.success());
+    ServerProcess::spawn(command().arg("run")).await.unwrap()
 }
 
-async fn gateway(dir: &Path) -> Child {
-    let path = dir.join("gateway.toml");
-    tokio::fs::write(
-        &path,
-        format!(
-            "[process]\nname='gateway'\nenvironment='development'\nadmin_addr='127.0.0.1:0'\nlog_root='{}'\nlog_level='info'\n\
-         [client]\nlisten_addr='127.0.0.1:0'\nmax_connections=8\nauth_timeout_ms=1000\n\
-         write_queue_capacity=256\nlog_connections=true\n",
-            dir.join("logs").display(),
-        ),
-    )
-    .await
-    .unwrap();
-    Command::new(
-        Path::new(env!("CARGO_BIN_EXE_ops"))
-            .with_file_name(format!("gateway{}", std::env::consts::EXE_SUFFIX)),
-    )
-    .arg("--config")
-    .arg(path)
-    .stdout(Stdio::piped())
-    .kill_on_drop(true)
-    .spawn()
-    .expect("build gateway before running ops tests")
-}
-
-async fn start_ops(dir: &Path, ready: (&str, &str), environment: &str) -> Child {
-    let path = dir.join(format!("ops-{environment}.toml"));
-    let endpoint = address(ready.0, "ops_api");
-    let admin = address(ready.0, "admin");
-    let gateway_admin = address(ready.1, "admin");
-    tokio::fs::write(&path, format!(
+async fn start_ops(
+    dir: &TestDir,
+    services: (&ServerProcess, &ServerProcess),
+    environment: &str,
+) -> Command {
+    let endpoint = services.0.addr("ops_api").unwrap();
+    let admin = services.0.addr("admin").unwrap();
+    let gateway_admin = services.1.addr("admin").unwrap();
+    let path = dir.write(&format!("ops-{environment}.toml"), &format!(
         "[process]\nname='ops'\nenvironment='{environment}'\nadmin_addr='127.0.0.1:0'\nlog_root='{}'\nlog_level='info'\n\
          [http]\nlisten_addr='127.0.0.1:0'\n[operator]\nname='Integration Operator'\n\
          [publisher]\nops_api_url='http://{endpoint}'\n[[servers]]\nname='Publisher'\nadmin_addr='{admin}'\n\
-         [[servers]]\nname='Gateway'\nrole='gateway'\nadmin_addr='{gateway_admin}'\n", dir.join("logs").display(),
+         [[servers]]\nname='Gateway'\nrole='gateway'\nadmin_addr='{gateway_admin}'\n", dir.path().join("logs").display(),
     )).await.unwrap();
-    Command::new(env!("CARGO_BIN_EXE_ops"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_ops"));
+    command
         .arg("--config")
         .arg(path)
         .env("PUBLISHER_OPS_API_KEY", OPS_KEY)
@@ -130,12 +68,8 @@ async fn start_ops(dir: &Path, ready: (&str, &str), environment: &str) -> Child 
         .env_remove("LOGIN_DB_URL")
         .env_remove("GAME_DB_URL")
         .env_remove("POSTGRES_PASSWORD")
-        .env_remove("PUBLISHER_GAME_API_KEY")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap()
+        .env_remove("PUBLISHER_GAME_API_KEY");
+    command
 }
 
 async fn page(client: &Client, url: &str) -> String {
@@ -146,30 +80,37 @@ async fn page(client: &Client, url: &str) -> String {
 
 #[sqlx::test(migrations = false)]
 async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgPool) {
-    let dir =
-        Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("operations-{}", std::process::id()));
-    tokio::fs::create_dir_all(&dir).await.unwrap();
+    let dir = TestDir::new(env!("CARGO_TARGET_TMPDIR"), "operations")
+        .await
+        .unwrap();
     let mut publisher = publisher(&dir, &pool).await;
-    let ready = announce(&mut publisher).await;
-    let mut gateway = gateway(&dir).await;
-    let gateway_ready = announce(&mut gateway).await;
-    let mut ops = start_ops(&dir, (&ready, &gateway_ready), "development").await;
-    let origin = format!("http://{}", address(&announce(&mut ops).await, "http"));
+    let binary = sibling_binary(env!("CARGO_BIN_EXE_ops"), "gateway");
+    let mut command = GatewayFixture::new("127.0.0.1:0".parse().unwrap(), 8, 1000)
+        .command(&binary, &dir)
+        .await
+        .unwrap();
+    let mut gateway = ServerProcess::spawn(&mut command).await.unwrap();
+    let services = (&publisher, &gateway);
+    let mut live_command = start_ops(&dir, services, "live").await;
+    let mut ops = ServerProcess::spawn(&mut start_ops(&dir, services, "development").await)
+        .await
+        .unwrap();
+    let origin = format!("http://{}", ops.addr("http").unwrap());
     let client = Client::builder().timeout(WAIT).no_proxy().build().unwrap();
     let connections = page(&client, &format!("{origin}/connections")).await;
     assert!(connections.contains("data-gateway=\"Gateway\" data-health=\"up\""));
-    assert!(connections.contains("gateway_connections_current</code></th><td>0</td>"));
+    assert!(connections.contains("net_connections_current</code></th><td>0</td>"));
     assert!(connections.contains("<th scope=\"row\">auth_timeout</th><td>0</td>"));
     assert!(connections.contains("hx-trigger=\"every 2s\""));
     let servers = page(&client, &format!("{origin}/servers/table")).await;
     assert!(servers.contains("runtime_workers"));
-    gateway.kill().await.unwrap();
+    gateway.stop().await.unwrap();
     let connections = page(&client, &format!("{origin}/connections/table")).await;
     assert!(connections.contains("data-gateway=\"Gateway\" data-health=\"down\""));
     let guest: Value = client
         .post(format!(
             "http://{}/v1/guest/accounts",
-            address(&ready, "api")
+            publisher.addr("api").unwrap()
         ))
         .json(&json!({}))
         .send()
@@ -233,15 +174,9 @@ async fn development_operator_can_sanction_and_audit_a_guest_over_http(pool: PgP
     assert!(audit.contains(reason));
     assert!(audit.contains(&account_id.to_string()));
 
-    let live = tokio::time::timeout(
-        WAIT,
-        start_ops(&dir, (&ready, &gateway_ready), "live")
-            .await
-            .wait_with_output(),
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let live = ServerProcess::finished(&mut live_command).await.unwrap();
     assert!(!live.status.success());
     assert_eq!(live.stdout, [0_u8; 0]);
+    ops.stop().await.unwrap();
+    publisher.stop().await.unwrap();
 }

@@ -9,6 +9,12 @@ use serde::de::DeserializeOwned;
 /// Why the config could not be read.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
+    /// An API key cannot be used as a nonempty HTTP header.
+    #[error("{name} must contain a nonempty HTTP header value")]
+    InvalidHeader {
+        /// Environment variable name, never its contents.
+        name: String,
+    },
     /// The file could not be opened or read.
     #[error("cannot read config file {}", .path.display())]
     Read {

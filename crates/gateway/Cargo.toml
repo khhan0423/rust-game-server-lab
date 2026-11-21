@@ -18,6 +18,7 @@ tokio-util = { workspace = true, features = ["codec"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+testkit = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["io-util", "macros", "process", "time"] }
 

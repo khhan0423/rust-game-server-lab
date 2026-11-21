@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use infra::http::HttpConfig;
 use infra::logging::Environment;
 use infra::process::ProcessConfig;
 use serde::Deserialize;
@@ -10,16 +11,10 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 pub(super) struct Config {
     pub(super) process: ProcessConfig,
-    pub(super) http: Http,
+    pub(super) http: HttpConfig,
     pub(super) operator: Operator,
     pub(super) publisher: Publisher,
     pub(super) servers: Vec<WatchedServer>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Http {
-    pub(super) listen_addr: SocketAddr,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,10 +54,6 @@ impl Config {
                 anyhow::bail!("real operator sign-on is not implemented yet");
             }
         }
-        anyhow::ensure!(
-            self.http.listen_addr.ip().is_loopback(),
-            "operations HTTP must listen on loopback"
-        );
         Ok(())
     }
 }

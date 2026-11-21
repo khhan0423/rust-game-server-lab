@@ -4,7 +4,10 @@ use std::net::IpAddr;
 
 use anyhow::Context;
 use axum::http::HeaderValue;
-use infra::config::Secret;
+use infra::http::api::{
+    ApiKey,
+    operator::{self, OperatorName},
+};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,8 +15,8 @@ use uuid::Uuid;
 pub(super) struct Client {
     http: reqwest::Client,
     url: Url,
-    key: HeaderValue,
-    operator: HeaderValue,
+    headers: axum::http::HeaderMap,
+    operator: OperatorName,
 }
 
 impl Client {
@@ -33,44 +36,31 @@ impl Client {
                 && url.password().is_none(),
             "publisher operator API must be a loopback HTTP origin"
         );
-        let operator = operator.trim();
-        anyhow::ensure!(
-            !operator.is_empty()
-                && operator.len() <= 128
-                && operator.bytes().all(|byte| (b' '..=b'~').contains(&byte)),
-            "invalid operator name"
+        let operator = OperatorName::try_from(operator)?;
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            operator::NAME_HEADER,
+            HeaderValue::from_str(operator.as_str())?,
         );
-        let operator = HeaderValue::from_str(operator)?;
-        let key = Secret::from_env("PUBLISHER_OPS_API_KEY")?;
-        anyhow::ensure!(!key.expose().is_empty(), "PUBLISHER_OPS_API_KEY is empty");
-        let mut key =
-            HeaderValue::from_str(key.expose()).context("invalid publisher operator API key")?;
-        key.set_sensitive(true);
+        ApiKey::from_env(operator::KEY_HEADER, operator::KEY_ENV)?.insert(&mut headers);
         Ok(Self {
             http: client,
             url,
-            key,
+            headers,
             operator,
         })
     }
 
     pub(super) fn operator(&self) -> &str {
-        self.operator.to_str().unwrap_or_default()
+        self.operator.as_str()
     }
 
     pub(super) fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let mut url = self.url.clone();
         url.set_path(path);
-        self.http
-            .request(method, url)
-            .header("x-ops-key", self.key.clone())
-            .header("x-operator", self.operator.clone())
+        self.http.request(method, url).headers(self.headers.clone())
     }
 }
-
-#[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(transparent)]
-pub(super) struct AccountId(pub(super) Uuid);
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Accounts {
@@ -81,7 +71,7 @@ pub(super) struct Accounts {
 #[derive(Debug, Deserialize)]
 pub(super) struct Account {
     #[serde(rename = "account_id")]
-    pub(super) id: AccountId,
+    pub(super) id: Uuid,
     pub(super) status: AccountStatus,
     pub(super) created_at: String,
 }
@@ -150,7 +140,7 @@ pub(super) struct AuditRecord {
     pub(super) occurred_at: String,
     pub(super) operator: String,
     pub(super) action: String,
-    pub(super) account_id: AccountId,
+    pub(super) account_id: Uuid,
     pub(super) before: AccountStatus,
     pub(super) after: AccountStatus,
     pub(super) reason: String,

@@ -166,7 +166,7 @@ mod tests {
             let config = RunConfig {
                 gateway: "127.0.0.1:18400".parse().unwrap(),
                 connections: 3,
-                ramp_per_sec: 100,
+                ramp_per_sec: "100".parse().unwrap(),
                 hold_secs: 1,
                 expect_established: expected,
                 expect_close_reason: Some("auth_failed".into()),

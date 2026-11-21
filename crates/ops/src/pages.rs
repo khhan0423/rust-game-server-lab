@@ -12,7 +12,7 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
-use crate::publisher::{AccountId, AccountStatus, Accounts, Audit, Detail, SanctionStatus};
+use crate::publisher::{AccountStatus, Accounts, Audit, Detail, SanctionStatus};
 
 const HTMX: &[u8] = include_bytes!("../assets/htmx.min.js");
 const CSS: &str = include_str!("../assets/ops.css");
@@ -107,6 +107,13 @@ struct Change<'a> {
 async fn accounts(State(state): State<Arc<AppState>>, Query(query): Query<Listing>) -> Response {
     let operator = state.publisher.operator();
     let page = query.page.unwrap_or(1);
+    if page == 0 {
+        return error(
+            operator,
+            StatusCode::BAD_REQUEST,
+            "Page numbers start at one.",
+        );
+    }
     // IDs are UUIDs, so the canonical value can be carried in a paging link.
     let search = query.search.as_deref().unwrap_or_default().trim();
     let search = if search.is_empty() {
@@ -145,9 +152,9 @@ async fn accounts(State(state): State<Arc<AppState>>, Query(query): Query<Listin
     }
 }
 
-async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<AccountId>) -> Response {
+async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<uuid::Uuid>) -> Response {
     let operator = state.publisher.operator();
-    let path = format!("/v1/accounts/{}", id.0);
+    let path = format!("/v1/accounts/{id}");
     let response = match state
         .publisher
         .request(Method::GET, &path)
@@ -168,7 +175,7 @@ async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<AccountId>) -
             render(&DetailPage {
                 operator,
                 detail,
-                token: &state.security.token,
+                token: state.security.token(),
                 action,
             })
         }
@@ -178,7 +185,7 @@ async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<AccountId>) -
 
 async fn change(
     State(state): State<Arc<AppState>>,
-    Path(id): Path<AccountId>,
+    Path(id): Path<uuid::Uuid>,
     headers: HeaderMap,
     Form(form): Form<StatusForm>,
 ) -> Response {
@@ -190,27 +197,26 @@ async fn change(
             "This request did not pass the form security check.",
         );
     }
-    let reason = form.reason.trim();
-    if reason.is_empty() || reason.chars().count() > 1000 || reason.contains('\0') {
+    let Ok(reason) = infra::http::api::operator::AuditReason::try_from(form.reason.as_str()) else {
         return error(
             operator,
             StatusCode::BAD_REQUEST,
             "Enter a reason up to 1,000 characters.",
         );
-    }
-    let path = format!("/v1/accounts/{}/status", id.0);
+    };
+    let path = format!("/v1/accounts/{id}/status");
     match state
         .publisher
         .request(Method::POST, &path)
         .json(&Change {
             status: form.status,
-            reason,
+            reason: reason.as_str(),
         })
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
     {
-        Ok(_) => Redirect::to(&format!("/accounts/{}", id.0)).into_response(),
+        Ok(_) => Redirect::to(&format!("/accounts/{id}")).into_response(),
         Err(error) => upstream(operator, &error),
     }
 }
@@ -218,6 +224,13 @@ async fn change(
 async fn audit(State(state): State<Arc<AppState>>, Query(query): Query<Listing>) -> Response {
     let operator = state.publisher.operator();
     let page = query.page.unwrap_or(1);
+    if page == 0 {
+        return error(
+            operator,
+            StatusCode::BAD_REQUEST,
+            "Page numbers start at one.",
+        );
+    }
     let response = match state
         .publisher
         .request(Method::GET, "/v1/audit")

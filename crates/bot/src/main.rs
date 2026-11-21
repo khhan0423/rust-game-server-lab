@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::Parser;
 use infra::logging::{self, ToolConfig};
-use tokio_util::sync::CancellationToken;
+use infra::shutdown::Shutdown;
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -16,22 +16,20 @@ struct Cli {
 
 fn main() -> anyhow::Result<std::process::ExitCode> {
     let cli = Cli::parse();
-    let config: ToolConfig = infra::config::load(&cli.config)?;
-    let _log = logging::init(&config.process)?;
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .context("building bot runtime")?;
+    let config: ToolConfig<infra::runtime::ToolRuntime> = infra::config::load(&cli.config)?;
+    let _log = logging::init(&config.process.log)?;
+    let runtime = config.process.runtime.build()?;
     let summary = runtime.block_on(async {
-        let stop = CancellationToken::new();
-        let run = bot::run(&cli.run, &stop);
+        let stop = Shutdown::default();
+        let token = stop.token();
+        let run = bot::run(&cli.run, &token);
         tokio::pin!(run);
         tokio::select! {
             result = &mut run => result,
-            signal = tokio::signal::ctrl_c() => {
+            signal = Shutdown::signal() => {
                 stop.cancel();
                 let result = run.await;
-                signal.context("listening for Ctrl+C")?;
+                signal.context("listening for shutdown")?;
                 result
             }
         }

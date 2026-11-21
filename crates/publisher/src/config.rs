@@ -1,8 +1,7 @@
 //! TOML configuration for the publisher process and its game catalog.
 
+use infra::http::HttpConfig;
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::time::Duration;
 
 use infra::process::ProcessConfig;
 use serde::Deserialize;
@@ -11,34 +10,12 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 pub(super) struct Config {
     pub(super) process: ProcessConfig,
-    pub(super) db: DbConfig,
+    pub(super) db: db::PoolConfig,
     pub(super) http: HttpConfig,
     pub(super) ops_api: HttpConfig,
     #[serde(default)]
     pub(super) tickets: TicketConfig,
     pub(super) games: HashMap<String, GameConfig>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct DbConfig {
-    max_connections: u32,
-    acquire_timeout_ms: u64,
-}
-
-impl DbConfig {
-    pub(super) const fn settings(&self) -> db::PoolSettings {
-        db::PoolSettings {
-            max_connections: self.max_connections,
-            acquire_timeout: Duration::from_millis(self.acquire_timeout_ms),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct HttpConfig {
-    pub(super) listen_addr: SocketAddr,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,7 +30,7 @@ impl Default for TicketConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct GameConfig {
     pub(super) entry_url: String,

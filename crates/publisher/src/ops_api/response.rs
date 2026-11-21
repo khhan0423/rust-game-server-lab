@@ -1,51 +1,108 @@
-//! Explicit field selections for the operator JSON API.
+//! Fields exposed by the operator JSON API. Credential data is never serialized.
+use crate::wire::{membership, operator_status};
+use db::login::ops;
+use serde::Serialize;
 
-use db::login::{AccountStatus, MembershipStatus, ops};
-use serde_json::{Value, json};
-
-const fn status(value: AccountStatus) -> &'static str {
-    match value {
-        AccountStatus::Active => "active",
-        AccountStatus::Sanctioned => "sanctioned",
-        AccountStatus::Closing => "closing",
+#[derive(Serialize)]
+pub(super) struct Account {
+    #[serde(rename = "account_id")]
+    id: String,
+    status: &'static str,
+    created_at: String,
+}
+impl From<ops::Account> for Account {
+    fn from(row: ops::Account) -> Self {
+        Self {
+            id: row.account_id.to_string(),
+            status: operator_status(row.status),
+            created_at: row.created_at,
+        }
     }
 }
-
-pub(super) fn account(row: &ops::Account) -> Value {
-    json!({"account_id": row.account_id.as_str(), "status": status(row.status), "created_at": row.created_at})
+#[derive(Serialize)]
+struct Identity {
+    provider: &'static str,
+    subject: String,
 }
-
-pub(super) fn detail(row: ops::Detail) -> Value {
-    let identities = row
-        .identities
-        .into_iter()
-        .map(|identity| {
-            let provider = match identity.provider {
-                ops::Provider::Guest => "guest",
-                ops::Provider::Google => "google",
-                ops::Provider::Apple => "apple",
-                ops::Provider::Steam => "steam",
-            };
-            json!({"provider": provider, "subject": identity.subject})
-        })
-        .collect::<Vec<_>>();
-    let memberships = row.memberships.into_iter().map(|membership| {
-        let state = match membership.status {
-            MembershipStatus::Member => "member",
-            MembershipStatus::Canceled => "canceled",
-            MembershipStatus::Sanctioned => "sanctioned",
-        };
-        json!({"game_id": membership.game_id.as_str(), "status": state, "joined_at": membership.joined_at})
-    }).collect::<Vec<_>>();
-    let tickets = row.tickets.into_iter().map(|ticket| {
-        json!({"game_id": ticket.game_id.as_str(), "expires_at": ticket.expires_at, "consumed": ticket.consumed})
-    }).collect::<Vec<_>>();
-    json!({"account": account(&row.account), "identities": identities, "memberships": memberships, "tickets": tickets})
+#[derive(Serialize)]
+struct Membership {
+    game_id: String,
+    status: &'static str,
+    joined_at: String,
 }
-
-pub(super) fn audit_record(row: &ops::AuditRecord) -> Value {
-    json!({
-        "id": row.id.0, "occurred_at": row.occurred_at, "operator": row.operator, "action": row.action,
-        "account_id": row.account_id.as_str(), "before": status(row.before), "after": status(row.after), "reason": row.reason,
-    })
+#[derive(Serialize)]
+struct Ticket {
+    game_id: String,
+    expires_at: String,
+    consumed: bool,
+}
+#[derive(Serialize)]
+pub(super) struct Detail {
+    account: Account,
+    identities: Vec<Identity>,
+    memberships: Vec<Membership>,
+    tickets: Vec<Ticket>,
+}
+impl From<ops::Detail> for Detail {
+    fn from(row: ops::Detail) -> Self {
+        Self {
+            account: row.account.into(),
+            identities: row
+                .identities
+                .into_iter()
+                .map(|i| Identity {
+                    subject: i.subject,
+                    provider: match i.provider {
+                        ops::Provider::Guest => "guest",
+                        ops::Provider::Google => "google",
+                        ops::Provider::Apple => "apple",
+                        ops::Provider::Steam => "steam",
+                    },
+                })
+                .collect(),
+            memberships: row
+                .memberships
+                .into_iter()
+                .map(|m| Membership {
+                    game_id: m.game_id.as_str().to_owned(),
+                    status: membership(m.status),
+                    joined_at: m.joined_at,
+                })
+                .collect(),
+            tickets: row
+                .tickets
+                .into_iter()
+                .map(|t| Ticket {
+                    game_id: t.game_id.as_str().to_owned(),
+                    expires_at: t.expires_at,
+                    consumed: t.consumed,
+                })
+                .collect(),
+        }
+    }
+}
+#[derive(Serialize)]
+pub(super) struct Record {
+    id: i64,
+    occurred_at: String,
+    operator: String,
+    action: String,
+    account_id: String,
+    before: &'static str,
+    after: &'static str,
+    reason: String,
+}
+impl From<ops::AuditRecord> for Record {
+    fn from(row: ops::AuditRecord) -> Self {
+        Self {
+            id: row.id.value(),
+            occurred_at: row.occurred_at,
+            operator: row.operator,
+            action: row.action,
+            account_id: row.account_id.to_string(),
+            before: operator_status(row.before),
+            after: operator_status(row.after),
+            reason: row.reason,
+        }
+    }
 }

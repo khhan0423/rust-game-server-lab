@@ -8,7 +8,7 @@
   <thead><tr><th>Time (UTC)</th><th>Operator</th><th>Action</th><th>Target</th><th>Before</th><th>After</th><th>Reason</th></tr></thead>
   <tbody>{% for row in rows.records %}
   <tr data-action="{{ row.action }}"><td><time>{{ row.occurred_at }}</time></td><td>{{ row.operator }}</td><td>{{ row.action }}</td>
-  <td><a href="/accounts/{{ row.account_id.0 }}"><code>{{ row.account_id.0 }}</code></a></td><td>{{ row.before.as_str() }}</td><td>{{ row.after.as_str() }}</td><td>{{ row.reason }}</td></tr>
+  <td><a href="/accounts/{{ row.account_id }}"><code>{{ row.account_id }}</code></a></td><td>{{ row.before.as_str() }}</td><td>{{ row.after.as_str() }}</td><td>{{ row.reason }}</td></tr>
   {% else %}<tr><td colspan="7">No operator actions recorded.</td></tr>{% endfor %}</tbody>
 </table></div>
 <nav class="pagination" aria-label="Audit pages">

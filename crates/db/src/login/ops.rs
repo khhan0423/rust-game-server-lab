@@ -78,7 +78,13 @@ pub struct Detail {
 
 /// Audit record identifier.
 #[derive(Debug, Clone, Copy)]
-pub struct AuditId(pub i64);
+pub struct AuditId(i64);
+impl AuditId {
+    /// Returns the database identifier.
+    pub const fn value(self) -> i64 {
+        self.0
+    }
+}
 
 /// Persisted operator action.
 #[derive(Debug)]
@@ -104,10 +110,18 @@ pub struct AuditRecord {
 /// One window into a list.
 #[derive(Debug, Clone, Copy)]
 pub struct Page {
-    /// Maximum number of rows to read.
-    pub limit: i64,
-    /// Number of rows to skip.
-    pub offset: i64,
+    limit: i64,
+    offset: i64,
+}
+impl Page {
+    /// Reads one extra row so callers can detect a following page.
+    pub fn new(number: u32, size: usize) -> Option<Self> {
+        let size = i64::try_from(size).ok().filter(|&n| n > 0)?;
+        Some(Self {
+            limit: size.checked_add(1)?,
+            offset: i64::from(number.checked_sub(1)?).checked_mul(size)?,
+        })
+    }
 }
 
 /// Lists accounts, optionally matching an exact account ID or guest subject.
@@ -124,40 +138,41 @@ pub async fn accounts(
          ) ORDER BY a.created_at DESC, a.account_id DESC LIMIT $3 OFFSET $4",
         search, GUEST_PROVIDER, page.limit, page.offset,
     ).fetch_all(pool).await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| Account {
-            account_id: AccountId::new(row.account_id),
-            status: row.status,
-            created_at: row.created_at,
+    rows.into_iter()
+        .map(|row| {
+            Ok(Account {
+                account_id: AccountId::parse(&row.account_id)?,
+                status: row.status,
+                created_at: row.created_at,
+            })
         })
-        .collect())
+        .collect()
 }
 
 /// Reads account information without selecting either secret hashes or ticket hashes.
 pub async fn detail(pool: &Pool, id: &AccountId) -> Result<Option<Detail>, DbError> {
     let Some(row) = sqlx::query!(
         "SELECT account_id, status AS \"status: AccountStatus\", to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS \"created_at!\"
-         FROM accounts WHERE account_id = $1", id.as_str(),
+         FROM accounts WHERE account_id = $1", id.to_string(),
     ).fetch_optional(pool).await? else { return Ok(None); };
     let identities = sqlx::query_as!(Identity,
-        "SELECT provider AS \"provider: Provider\", subject FROM account_identities WHERE account_id = $1 ORDER BY provider", id.as_str(),
+        "SELECT provider AS \"provider: Provider\", subject FROM account_identities WHERE account_id = $1 ORDER BY provider", id.to_string(),
     ).fetch_all(pool).await?;
     let memberships = sqlx::query!(
         "SELECT game_id, status AS \"status: MembershipStatus\", to_char(joined_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS \"joined_at!\"
-         FROM game_memberships WHERE account_id = $1 ORDER BY game_id", id.as_str(),
+         FROM game_memberships WHERE account_id = $1 ORDER BY game_id", id.to_string(),
     ).fetch_all(pool).await?.into_iter().map(|row| Membership {
         game_id: GameId::new(row.game_id), status: row.status, joined_at: row.joined_at,
     }).collect();
     let tickets = sqlx::query!(
         "SELECT game_id, to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS \"expires_at!\", (consumed_at IS NOT NULL) AS \"consumed!\"
-         FROM entry_tickets WHERE account_id = $1 ORDER BY COALESCE(issued_at, expires_at) DESC, expires_at DESC, game_id LIMIT 20", id.as_str(),
+         FROM entry_tickets WHERE account_id = $1 ORDER BY COALESCE(issued_at, expires_at) DESC, expires_at DESC, game_id LIMIT 20", id.to_string(),
     ).fetch_all(pool).await?.into_iter().map(|row| TicketInfo {
         game_id: GameId::new(row.game_id), expires_at: row.expires_at, consumed: row.consumed,
     }).collect();
     Ok(Some(Detail {
         account: Account {
-            account_id: AccountId::new(row.account_id),
+            account_id: AccountId::parse(&row.account_id)?,
             status: row.status,
             created_at: row.created_at,
         },
@@ -174,17 +189,18 @@ pub async fn audit(pool: &Pool, page: Page) -> Result<Vec<AuditRecord>, DbError>
             before_status AS \"before: AccountStatus\", after_status AS \"after: AccountStatus\", reason
          FROM ops_audit ORDER BY id DESC LIMIT $1 OFFSET $2", page.limit, page.offset,
     ).fetch_all(pool).await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| AuditRecord {
-            id: AuditId(row.id),
-            occurred_at: row.occurred_at,
-            operator: row.operator,
-            action: row.action,
-            account_id: AccountId::new(row.account_id),
-            before: row.before,
-            after: row.after,
-            reason: row.reason,
+    rows.into_iter()
+        .map(|row| {
+            Ok(AuditRecord {
+                id: AuditId(row.id),
+                occurred_at: row.occurred_at,
+                operator: row.operator,
+                action: row.action,
+                account_id: AccountId::parse(&row.account_id)?,
+                before: row.before,
+                after: row.after,
+                reason: row.reason,
+            })
         })
-        .collect())
+        .collect()
 }

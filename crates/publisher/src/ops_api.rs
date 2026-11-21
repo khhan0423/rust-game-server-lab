@@ -4,6 +4,7 @@ mod response;
 
 use std::sync::Arc;
 
+use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::{self, Next};
@@ -11,20 +12,19 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use db::login::{AccountId, ops};
-use infra::config::Secret;
-use serde::Deserialize;
-use serde_json::{Value, json};
+use infra::http::api::{
+    ApiError, ApiJson, ApiKey,
+    operator::{AuditReason, NAME_HEADER, OperatorName},
+};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 struct OpsState {
     pool: db::Pool,
-    key: Secret,
+    key: ApiKey,
 }
 
-#[derive(Clone)]
-struct Operator(String);
-
-pub(super) fn router(pool: db::Pool, key: Secret) -> Router {
+pub(super) fn router(pool: db::Pool, key: ApiKey) -> Router {
     let state = Arc::new(OpsState { pool, key });
     Router::new()
         .route("/v1/accounts", get(accounts))
@@ -43,21 +43,19 @@ async fn authenticate(
     mut request: Request,
     next: Next,
 ) -> Response {
-    let matches = request.headers().get("x-ops-key").is_some_and(|key| {
-        crate::credentials::key_matches(state.key.expose().as_bytes(), key.as_bytes())
-    });
-    if !matches {
-        return failure(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
+    if let Err(error) = state.key.verify(request.headers()) {
+        return error.into_response();
     }
-    let name = request
-        .headers()
-        .get("x-operator")
-        .and_then(|header| header.to_str().ok())
-        .map(str::trim);
-    let Some(name) = name.filter(|name| !name.is_empty() && name.len() <= 128) else {
-        return failure(StatusCode::BAD_REQUEST, "operator_required").into_response();
+    let mut names = request.headers().get_all(NAME_HEADER).iter();
+    let value = names
+        .next()
+        .and_then(|v| v.to_str().ok())
+        .filter(|_| names.next().is_none())
+        .unwrap_or_default();
+    let operator = match OperatorName::try_from(value) {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
     };
-    let operator = Operator(name.to_owned());
     request.extensions_mut().insert(operator);
     next.run(request).await
 }
@@ -71,56 +69,69 @@ struct Listing {
 impl Listing {
     const PAGE_SIZE: usize = 25;
 
-    fn window(&self) -> Result<ops::Page, OpsError> {
-        let offset = self
-            .page
-            .unwrap_or(1)
-            .checked_sub(1)
-            .ok_or_else(|| failure(StatusCode::BAD_REQUEST, "invalid_page"))?;
-        Ok(ops::Page {
-            limit: 26,
-            offset: i64::from(offset) * 25,
-        })
+    fn window(&self) -> Result<ops::Page, ApiError> {
+        ops::Page::new(self.page.unwrap_or(1), Self::PAGE_SIZE)
+            .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "invalid_page"))
     }
+}
+
+#[derive(Serialize)]
+struct Accounts {
+    accounts: Vec<response::Account>,
+    has_next: bool,
+}
+#[derive(Serialize)]
+struct Audit {
+    records: Vec<response::Record>,
+    has_next: bool,
+}
+#[derive(Serialize)]
+struct Changed {
+    changed: bool,
 }
 
 async fn accounts(
     State(state): State<Arc<OpsState>>,
-    Query(query): Query<Listing>,
-) -> Result<Json<Value>, OpsError> {
+    query: Result<Query<Listing>, QueryRejection>,
+) -> Result<Json<Accounts>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::INVALID)?;
     let mut rows = ops::accounts(&state.pool, query.search.as_deref(), query.window()?)
         .await
-        .map_err(OpsError::Database)?;
+        .map_err(ApiError::internal)?;
     let has_next = rows.len() > Listing::PAGE_SIZE;
     rows.truncate(Listing::PAGE_SIZE);
-    Ok(Json(
-        json!({"accounts": rows.iter().map(response::account).collect::<Vec<_>>(), "has_next": has_next}),
-    ))
+    Ok(Json(Accounts {
+        accounts: rows.into_iter().map(Into::into).collect(),
+        has_next,
+    }))
 }
 
 async fn audit(
     State(state): State<Arc<OpsState>>,
-    Query(query): Query<Listing>,
-) -> Result<Json<Value>, OpsError> {
+    query: Result<Query<Listing>, QueryRejection>,
+) -> Result<Json<Audit>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::INVALID)?;
     let mut rows = ops::audit(&state.pool, query.window()?)
         .await
-        .map_err(OpsError::Database)?;
+        .map_err(ApiError::internal)?;
     let has_next = rows.len() > Listing::PAGE_SIZE;
     rows.truncate(Listing::PAGE_SIZE);
-    Ok(Json(
-        json!({"records": rows.iter().map(response::audit_record).collect::<Vec<_>>(), "has_next": has_next}),
-    ))
+    Ok(Json(Audit {
+        records: rows.into_iter().map(Into::into).collect(),
+        has_next,
+    }))
 }
 
 async fn detail(
     State(state): State<Arc<OpsState>>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<Value>, OpsError> {
-    let detail = ops::detail(&state.pool, &AccountId::new(id.to_string()))
+    id: Result<Path<Uuid>, PathRejection>,
+) -> Result<Json<response::Detail>, ApiError> {
+    let Path(id) = id.map_err(|_| ApiError::INVALID)?;
+    let detail = ops::detail(&state.pool, &AccountId::new(id))
         .await
-        .map_err(OpsError::Database)?
-        .ok_or_else(|| failure(StatusCode::NOT_FOUND, "account_not_found"))?;
-    Ok(Json(response::detail(detail)))
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "account_not_found"))?;
+    Ok(Json(detail.into()))
 }
 
 #[derive(Deserialize)]
@@ -139,53 +150,29 @@ struct Change {
 
 async fn set_status(
     State(state): State<Arc<OpsState>>,
-    Extension(operator): Extension<Operator>,
-    Path(id): Path<Uuid>,
-    Json(change): Json<Change>,
-) -> Result<Json<Value>, OpsError> {
+    Extension(operator): Extension<OperatorName>,
+    id: Result<Path<Uuid>, PathRejection>,
+    change: ApiJson<Change>,
+) -> Result<Json<Changed>, ApiError> {
+    let Path(id) = id.map_err(|_| ApiError::INVALID)?;
+    let change = change.into_inner();
     let status = match change.status {
         Status::Active => ops::SanctionStatus::Active,
         Status::Sanctioned => ops::SanctionStatus::Sanctioned,
     };
-    let reason = change.reason.trim();
-    if reason.is_empty() || reason.chars().count() > 1000 || reason.contains('\0') {
-        return Err(failure(StatusCode::BAD_REQUEST, "reason_required"));
-    }
-    let id = AccountId::new(id.to_string());
-    let change = ops::StatusChange {
-        status,
-        operator: &operator.0,
-        reason,
-    };
+    let reason = AuditReason::try_from(change.reason.as_str())?;
+    let id = AccountId::new(id);
+    let change = ops::StatusChange::new(status, operator.as_str(), reason.as_str())
+        .ok_or(ApiError::INVALID)?;
     match ops::set_status(&state.pool, &id, &change)
         .await
-        .map_err(OpsError::Database)?
+        .map_err(ApiError::internal)?
     {
-        ops::StatusOutcome::Changed => Ok(Json(json!({"changed": true}))),
-        ops::StatusOutcome::Unchanged => Ok(Json(json!({"changed": false}))),
-        ops::StatusOutcome::NotFound => Err(failure(StatusCode::NOT_FOUND, "account_not_found")),
-        ops::StatusOutcome::Closing => Err(failure(StatusCode::CONFLICT, "account_closing")),
+        ops::StatusOutcome::Changed => Ok(Json(Changed { changed: true })),
+        ops::StatusOutcome::Unchanged => Ok(Json(Changed { changed: false })),
+        ops::StatusOutcome::NotFound => {
+            Err(ApiError::new(StatusCode::NOT_FOUND, "account_not_found"))
+        }
+        ops::StatusOutcome::Closing => Err(ApiError::new(StatusCode::CONFLICT, "account_closing")),
     }
-}
-
-enum OpsError {
-    Rejected(StatusCode, &'static str),
-    Database(db::DbError),
-}
-
-impl IntoResponse for OpsError {
-    fn into_response(self) -> Response {
-        let (status, code) = match self {
-            Self::Rejected(status, code) => (status, code),
-            Self::Database(error) => {
-                tracing::error!(%error, "publisher operator database operation failed");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
-            }
-        };
-        (status, Json(json!({"error": code}))).into_response()
-    }
-}
-
-const fn failure(status: StatusCode, code: &'static str) -> OpsError {
-    OpsError::Rejected(status, code)
 }

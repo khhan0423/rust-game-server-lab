@@ -1,17 +1,21 @@
 //! Real operator API authentication, credential projection, and enforcement.
 
 use super::*;
+use infra::http::api::operator::{KEY_HEADER, NAME_HEADER};
 
 #[sqlx::test(migrator = "db::login::LOGIN_MIGRATOR")]
 async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(pool: PgPool) {
-    let mut child = publisher("operator", &pool).await.spawn().unwrap();
-    let (_, api, ops) = ready_addresses(&mut child).await;
+    let mut child = ServerProcess::spawn(&mut publisher("operator", &pool).await)
+        .await
+        .unwrap();
+    let api = child.addr("api").unwrap();
+    let ops = child.addr("ops_api").unwrap();
     let client = Client::builder().timeout(WAIT).build().unwrap();
     let accounts = format!("http://{ops}/v1/accounts");
     for key in [None, Some("incorrect-operator-key")] {
-        let request = client.get(&accounts).header("x-operator", "Support");
+        let request = client.get(&accounts).header(NAME_HEADER, "Support");
         let request = match key {
-            Some(key) => request.header("x-ops-key", key),
+            Some(key) => request.header(KEY_HEADER, key),
             None => request,
         };
         assert_eq!(
@@ -22,7 +26,7 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
     assert_eq!(
         client
             .get(&accounts)
-            .header("x-ops-key", OPS_KEY)
+            .header(KEY_HEADER, OPS_KEY)
             .send()
             .await
             .unwrap()
@@ -61,9 +65,17 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
     let authorized = |method, url: &str| {
         client
             .request(method, url)
-            .header("x-ops-key", OPS_KEY)
-            .header("x-operator", "Support")
+            .header(KEY_HEADER, OPS_KEY)
+            .header(NAME_HEADER, "Support")
     };
+    for url in [format!("{accounts}?page=bad"), format!("{accounts}/bad")] {
+        assert_error(
+            authorized(reqwest::Method::GET, &url).send().await.unwrap(),
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+        )
+        .await;
+    }
     let listing: Value = authorized(reqwest::Method::GET, &format!("{accounts}?search={id}"))
         .send()
         .await
@@ -102,6 +114,16 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
     }
 
     let reason = "Test account violated policy";
+    assert_error(
+        authorized(reqwest::Method::POST, &format!("{detail_url}/status"))
+            .json(&json!({"bad":true}))
+            .send()
+            .await
+            .unwrap(),
+        StatusCode::BAD_REQUEST,
+        "invalid_request",
+    )
+    .await;
     let result: Value = authorized(reqwest::Method::POST, &format!("{detail_url}/status"))
         .json(&json!({"status": "sanctioned", "reason": reason}))
         .send()
@@ -134,4 +156,5 @@ async fn operator_api_requires_identity_hides_credentials_and_audits_a_sanction(
     assert_eq!(record["reason"], reason);
     assert_eq!(record["before"], "active");
     assert_eq!(record["after"], "sanctioned");
+    child.stop().await.unwrap();
 }

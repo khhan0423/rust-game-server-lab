@@ -8,8 +8,8 @@
 use std::net::SocketAddr;
 
 use infra::admin::{AdminListener, Readiness};
+use infra::shutdown::Shutdown;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusRecorder};
-use tokio_util::sync::CancellationToken;
 
 async fn start_admin(recorder: &PrometheusRecorder) -> (SocketAddr, Readiness) {
     let listener = AdminListener::bind("127.0.0.1:0".parse().unwrap())
@@ -17,11 +17,7 @@ async fn start_admin(recorder: &PrometheusRecorder) -> (SocketAddr, Readiness) {
         .unwrap();
     let addr = listener.local_addr();
     let readiness = Readiness::default();
-    tokio::spawn(listener.serve(
-        readiness.clone(),
-        recorder.handle(),
-        CancellationToken::new(),
-    ));
+    tokio::spawn(listener.serve(readiness.clone(), recorder.handle(), Shutdown::default()));
     (addr, readiness)
 }
 

@@ -125,9 +125,9 @@ impl LogConfig {
 /// Top-level config for a tool that does not open an admin port.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ToolConfig {
+pub struct ToolConfig<T = LogConfig> {
     /// Identity and operations log settings.
-    pub process: LogConfig,
+    pub process: T,
 }
 
 /// Log level written in the config file.

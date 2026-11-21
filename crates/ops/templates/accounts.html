@@ -11,7 +11,7 @@
 <table>
   <thead><tr><th>Account ID</th><th>Status</th><th>Created (UTC)</th></tr></thead>
   <tbody>{% for account in rows.accounts %}
-    <tr><th scope="row"><a href="/accounts/{{ account.id.0 }}"><code>{{ account.id.0 }}</code></a></th>
+    <tr><th scope="row"><a href="/accounts/{{ account.id }}"><code>{{ account.id }}</code></a></th>
     <td><span class="badge" data-state="{{ account.status.as_str() }}">{{ account.status.as_str() }}</span></td><td><time>{{ account.created_at }}</time></td></tr>
   {% else %}<tr><td colspan="3">No matching accounts.</td></tr>{% endfor %}</tbody>
 </table>

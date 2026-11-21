@@ -26,7 +26,7 @@ pub async fn create_guest(
     let mut tx = pool.begin().await?;
     sqlx::query!(
         "INSERT INTO accounts (account_id, status, created_at) VALUES ($1, $2, now())",
-        account_id.as_str(),
+        account_id.to_string(),
         AccountStatus::Active as _,
     )
     .execute(&mut *tx)
@@ -35,8 +35,8 @@ pub async fn create_guest(
         "INSERT INTO account_identities (provider, subject, account_id, secret_hash, linked_at)
          VALUES ($1, $2, $3, sha256($4), now())",
         GUEST_PROVIDER,
-        guest.guest_id.as_str(),
-        account_id.as_str(),
+        guest.guest_id.to_string(),
+        account_id.to_string(),
         guest.secret.expose().as_slice(),
     )
     .execute(&mut *tx)
@@ -60,7 +60,7 @@ pub async fn login_guest(
          WHERE i.provider = $1 AND i.subject = $2 AND i.secret_hash = sha256($3)
          FOR SHARE OF a, i",
         GUEST_PROVIDER,
-        guest.guest_id.as_str(),
+        guest.guest_id.to_string(),
         guest.secret.expose().as_slice(),
     )
     .fetch_optional(&mut *tx)
@@ -68,7 +68,7 @@ pub async fn login_guest(
     else {
         return Ok(LoginOutcome::InvalidCredentials);
     };
-    let account_id = AccountId::new(account.account_id);
+    let account_id = AccountId::parse(&account.account_id)?;
     match account.status {
         AccountStatus::Active => {}
         AccountStatus::Sanctioned | AccountStatus::Closing => {
@@ -82,7 +82,7 @@ pub async fn login_guest(
          VALUES ($1, $2, $3, now())
          ON CONFLICT (account_id, game_id) DO UPDATE SET status = EXCLUDED.status
          WHERE game_memberships.status = $4",
-        account_id.as_str(),
+        account_id.to_string(),
         grant.game_id.as_str(),
         MembershipStatus::Member as _,
         MembershipStatus::Canceled as _,
@@ -95,7 +95,7 @@ pub async fn login_guest(
             let status = sqlx::query_scalar!(
                 "SELECT status AS \"status: MembershipStatus\" FROM game_memberships
                  WHERE account_id = $1 AND game_id = $2",
-                account_id.as_str(),
+                account_id.to_string(),
                 grant.game_id.as_str(),
             )
             .fetch_one(&mut *tx)
@@ -124,7 +124,7 @@ pub async fn login_guest(
         "INSERT INTO entry_tickets (ticket_hash, account_id, game_id, expires_at)
          VALUES (sha256($1), $2, $3, clock_timestamp() + $4 * interval '1 second')",
         grant.ticket.expose().as_slice(),
-        account_id.as_str(),
+        account_id.to_string(),
         grant.game_id.as_str(),
         f64::from(grant.ttl_secs),
     )
@@ -164,9 +164,10 @@ pub async fn consume_ticket(
     )
     .fetch_one(&mut *tx)
     .await?;
+    let account_id = AccountId::parse(&account_id)?;
     tx.commit().await?;
     Ok(Some(VerifiedTicket {
-        account_id: AccountId::new(account_id),
+        account_id,
         membership: statuses.membership,
         account_status: statuses.account,
     }))

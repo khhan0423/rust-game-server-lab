@@ -40,6 +40,7 @@ db = { path = "crates/db" }
 infra = { path = "crates/infra" }
 net = { path = "crates/net" }
 protocol = { path = "crates/protocol" }
+testkit = { path = "crates/testkit" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -4,13 +4,14 @@ use std::io::Write;
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use crate::shutdown::Shutdown;
 use metrics_exporter_prometheus::{BuildError, PrometheusBuilder};
 use serde::Deserialize;
-use tokio::task::{JoinError, JoinHandle};
-use tokio_util::sync::CancellationToken;
+use tokio::task::{JoinError, JoinSet};
 
 use crate::admin::{AdminListener, Readiness};
 use crate::logging::{self, LogConfig, LogError, WorkerGuard};
+use crate::runtime::RuntimeConfig;
 
 /// Settings that every server process keeps in the `[process]` table of its config file.
 #[derive(Debug, Deserialize)]
@@ -21,6 +22,16 @@ pub struct ProcessConfig {
     /// Process identity and operations log settings.
     #[serde(flatten)]
     pub log: LogConfig,
+    /// Runtime worker configuration.
+    #[serde(flatten)]
+    runtime: RuntimeConfig,
+}
+
+impl ProcessConfig {
+    /// Returns the settings for the runtime that hosts this server.
+    pub fn runtime(&self) -> &RuntimeConfig {
+        &self.runtime
+    }
 }
 
 /// Why the common process part failed.
@@ -41,15 +52,12 @@ pub enum ProcessError {
         #[source]
         source: std::io::Error,
     },
-    /// The admin port failed while handling requests.
-    #[error("admin port failed")]
-    AdminServe(#[source] std::io::Error),
-    /// The admin port task terminated abnormally.
-    #[error("admin task stopped unexpectedly")]
-    AdminTask(#[from] JoinError),
-    /// The runtime sampler task terminated abnormally.
-    #[error("runtime sampler stopped unexpectedly")]
-    RuntimeSampler(#[source] JoinError),
+    /// A supervised service failed.
+    #[error("service failed")]
+    Service(#[source] std::io::Error),
+    /// A supervised task terminated abnormally.
+    #[error("service task stopped unexpectedly")]
+    ServiceTask(#[source] JoinError),
     /// The ready notification line could not be written to standard output.
     #[error("cannot announce readiness")]
     Announce(#[source] std::io::Error),
@@ -60,18 +68,19 @@ pub enum ProcessError {
 
 /// The common part of a running server process.
 #[derive(Debug)]
-pub struct Process {
+pub(crate) struct Process {
     readiness: Readiness,
     admin_addr: SocketAddr,
-    admin_task: JoinHandle<std::io::Result<()>>,
-    runtime_sampler: JoinHandle<()>,
-    shutdown: CancellationToken,
+    shutdown: Shutdown,
     _log: WorkerGuard,
 }
 
 impl Process {
     /// Turns on logging and metrics and opens the admin port. At this point only `/health/live` returns 200.
-    pub async fn start(config: &ProcessConfig) -> Result<Self, ProcessError> {
+    pub(crate) async fn start(
+        config: &ProcessConfig,
+        tasks: &mut JoinSet<std::io::Result<()>>,
+    ) -> Result<Self, ProcessError> {
         let log = logging::init(&config.log)?;
         let metrics = PrometheusBuilder::new().install_recorder()?;
         let listener = AdminListener::bind(config.admin_addr)
@@ -82,75 +91,65 @@ impl Process {
             })?;
         let admin_addr = listener.local_addr();
         let readiness = Readiness::default();
-        let shutdown = CancellationToken::new();
+        let shutdown = Shutdown::default();
         let runtime = tokio::runtime::Handle::current().metrics();
         record_runtime_metrics(&runtime);
-        let runtime_sampler = tokio::spawn(sample_runtime(runtime, shutdown.clone()));
-        let admin_task = tokio::spawn(listener.serve(readiness.clone(), metrics, shutdown.clone()));
+        let stop = shutdown.clone();
+        tasks.spawn(async move {
+            sample_runtime(runtime, stop).await;
+            Ok(())
+        });
+        tasks.spawn(listener.serve(readiness.clone(), metrics, shutdown.clone()));
         Ok(Self {
             readiness,
             admin_addr,
-            admin_task,
-            runtime_sampler,
             shutdown,
             _log: log,
         })
     }
 
-    /// Signals that the startup barrier has finished. Turns on `/health/ready` and writes one line
-    /// `ready admin=<address>` to standard output for the parent process to read (the launcher and integration tests wait for this line).
-    pub fn mark_ready(&self) -> Result<(), ProcessError> {
-        self.mark_ready_with(&[])
-    }
-
     /// Announces readiness with additional named listener addresses on the same line.
-    pub fn mark_ready_with(&self, listeners: &[(&str, SocketAddr)]) -> Result<(), ProcessError> {
+    pub(crate) fn mark_ready_with(
+        &self,
+        listeners: &[(&str, SocketAddr)],
+    ) -> Result<(), ProcessError> {
+        let line = crate::ready::ReadyLine::new(self.admin_addr, listeners)
+            .map_err(ProcessError::Announce)?;
         self.readiness.set_ready();
         metrics::gauge!("server_ready").set(1.0);
         let mut stdout = std::io::stdout().lock();
-        write!(stdout, "ready admin={}", self.admin_addr)
-            .and_then(|()| {
-                for (name, addr) in listeners {
-                    write!(stdout, " {name}={addr}")?;
-                }
-                writeln!(stdout)
-            })
+        writeln!(stdout, "{line}")
             .and_then(|()| stdout.flush())
             .map_err(ProcessError::Announce)
     }
 
     /// Resolves when the process starts graceful shutdown.
-    pub fn shutdown_signal(&self) -> impl Future<Output = ()> + use<> {
-        self.shutdown.clone().cancelled_owned()
+    pub(crate) fn shutdown_signal(&self) -> Shutdown {
+        self.shutdown.clone()
     }
 
-    /// Waits for the shutdown signal (Ctrl+C), then closes the admin port.
-    pub async fn run_until_shutdown(self) -> Result<(), ProcessError> {
-        let signal = tokio::signal::ctrl_c().await.map_err(ProcessError::Signal);
-        if signal.is_ok() {
-            tracing::info!("shutdown signal received");
-        }
-        self.shutdown().await.and(signal)
-    }
-
-    /// Stops the admin port and runtime sampler and notifies service tasks.
-    pub async fn shutdown(self) -> Result<(), ProcessError> {
+    /// Clears readiness before asking all supervised workers to drain.
+    pub(crate) fn stop(&self) {
         self.readiness.set_not_ready();
         metrics::gauge!("server_ready").set(0.0);
         self.shutdown.cancel();
-        let (admin, sampler) = tokio::join!(self.admin_task, self.runtime_sampler);
-        sampler.map_err(ProcessError::RuntimeSampler)?;
-        admin?.map_err(ProcessError::AdminServe)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn readiness(&self) -> Readiness {
+        self.readiness.clone()
     }
 }
 
-async fn sample_runtime(runtime: tokio::runtime::RuntimeMetrics, shutdown: CancellationToken) {
+async fn sample_runtime(runtime: tokio::runtime::RuntimeMetrics, shutdown: Shutdown) {
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let cancelled = shutdown.wait();
+    tokio::pin!(cancelled);
     loop {
         tokio::select! {
             biased;
-            () = shutdown.cancelled() => return,
+            () = &mut cancelled => return,
             _ = interval.tick() => record_runtime_metrics(&runtime),
         }
     }

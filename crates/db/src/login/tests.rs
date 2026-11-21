@@ -2,23 +2,20 @@
 
 use super::*;
 
-#[path = "ops/audit_tests.rs"]
-mod audit;
-
 const SECRET: [u8; 32] = [1; 32];
 
-struct Fixture {
-    account_id: AccountId,
+pub(super) struct Fixture {
+    pub(super) account_id: AccountId,
     guest_id: GuestId,
     secret: GuestSecret,
     game_id: GameId,
 }
 
 impl Fixture {
-    async fn create(pool: &Pool) -> Self {
+    pub(super) async fn create(pool: &Pool) -> Self {
         let guest = Self {
-            account_id: AccountId::new("018f22ce-8c1f-7000-8000-000000000001".to_owned()),
-            guest_id: GuestId::new("018f22ce-8c1f-7000-8000-000000000002".to_owned()),
+            account_id: AccountId::parse("018f22ce-8c1f-7000-8000-000000000001").unwrap(),
+            guest_id: GuestId::parse("018f22ce-8c1f-7000-8000-000000000002").unwrap(),
             secret: GuestSecret::new(SECRET),
             game_id: GameId::new("lab".to_owned()),
         };
@@ -50,7 +47,7 @@ async fn guest_creation_stores_the_hash_instead_of_the_secret(pool: Pool) {
 
     let hash = sqlx::query_scalar!(
         "SELECT secret_hash FROM account_identities WHERE subject = $1",
-        guest.guest_id.as_str()
+        guest.guest_id.to_string()
     )
     .fetch_one(&pool)
     .await
@@ -71,7 +68,7 @@ async fn guest_creation_stores_the_hash_instead_of_the_secret(pool: Pool) {
 async fn wrong_secret_and_unknown_guest_are_rejected_identically(pool: Pool) {
     let guest = Fixture::create(&pool).await;
     let wrong_secret = GuestSecret::new([2; 32]);
-    let unknown = GuestId::new("018f22ce-8c1f-7000-8000-000000000003".to_owned());
+    let unknown = GuestId::parse("018f22ce-8c1f-7000-8000-000000000003").unwrap();
     let ticket = Ticket::new([3; 32]);
     let grant = guest.grant(&ticket, 60);
 
@@ -105,7 +102,7 @@ async fn platform_and_game_sanctions_block_login_but_do_not_block_verification(p
         sqlx::query!(
             "UPDATE accounts SET status = $1 WHERE account_id = $2",
             status as _,
-            guest.account_id.as_str()
+            guest.account_id.to_string()
         )
         .execute(&pool)
         .await
@@ -117,7 +114,7 @@ async fn platform_and_game_sanctions_block_login_but_do_not_block_verification(p
         sqlx::query!(
             "UPDATE game_memberships SET status = $1 WHERE account_id = $2 AND game_id = $3",
             membership as _,
-            guest.account_id.as_str(),
+            guest.account_id.to_string(),
             guest.game_id.as_str()
         )
         .execute(&pool)
@@ -132,7 +129,7 @@ async fn platform_and_game_sanctions_block_login_but_do_not_block_verification(p
     sqlx::query!(
         "UPDATE accounts SET status = $1 WHERE account_id = $2",
         AccountStatus::Closing as _,
-        guest.account_id.as_str()
+        guest.account_id.to_string()
     )
     .execute(&pool)
     .await
@@ -196,7 +193,7 @@ async fn repeated_login_keeps_one_membership_and_restores_it_after_cancellation(
             sqlx::query!(
                 "UPDATE game_memberships SET status = $1 WHERE account_id = $2 AND game_id = $3",
                 MembershipStatus::Canceled as _,
-                guest.account_id.as_str(),
+                guest.account_id.to_string(),
                 guest.game_id.as_str()
             )
             .execute(&pool)
@@ -210,7 +207,7 @@ async fn repeated_login_keeps_one_membership_and_restores_it_after_cancellation(
                 .unwrap(),
             LoginOutcome::Issued(_)
         ));
-        let statuses = sqlx::query_scalar!("SELECT status AS \"status: MembershipStatus\" FROM game_memberships WHERE account_id = $1 AND game_id = $2", guest.account_id.as_str(), guest.game_id.as_str())
+        let statuses = sqlx::query_scalar!("SELECT status AS \"status: MembershipStatus\" FROM game_memberships WHERE account_id = $1 AND game_id = $2", guest.account_id.to_string(), guest.game_id.as_str())
             .fetch_all(&pool).await.unwrap();
         assert_eq!(statuses, [MembershipStatus::Member]);
     }

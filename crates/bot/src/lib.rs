@@ -26,6 +26,20 @@ pub enum Scenario {
     ConnectAuth,
 }
 
+/// Validated connection starts per second.
+#[derive(Debug, Copy, Clone)]
+pub struct Ramp(u32);
+impl std::str::FromStr for Ramp {
+    type Err = &'static str;
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
+        raw.parse::<u32>()
+            .ok()
+            .filter(|n| (1..=1_000_000).contains(n))
+            .map(Self)
+            .ok_or("connection ramp must be 1..=1000000")
+    }
+}
+
 /// Settings for a single load run.
 #[derive(Debug, Args)]
 pub struct RunConfig {
@@ -36,8 +50,8 @@ pub struct RunConfig {
     #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
     pub connections: u32,
     /// Maximum connection attempts started per second.
-    #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u32).range(1..=1_000_000))]
-    pub ramp_per_sec: u32,
+    #[arg(long, default_value = "100")]
+    pub ramp_per_sec: Ramp,
     /// Maximum time to wait after TCP establishment.
     #[arg(long, default_value_t = 15, value_parser = clap::value_parser!(u32).range(1..))]
     pub hold_secs: u32,
@@ -53,10 +67,6 @@ pub struct RunConfig {
 
 /// Drives the selected scenario until all attempts finish or `stop` is cancelled.
 pub async fn run(config: &RunConfig, stop: &CancellationToken) -> anyhow::Result<Summary> {
-    anyhow::ensure!(
-        config.ramp_per_sec > 0 && config.ramp_per_sec <= 1_000_000,
-        "invalid connection ramp"
-    );
     let start = Instant::now();
     let mut summary = summary::Collector::new()?;
     let mut jobs = JoinSet::new();
@@ -97,7 +107,7 @@ pub async fn run(config: &RunConfig, stop: &CancellationToken) -> anyhow::Result
                 let now = Instant::now();
                 let elapsed = now.duration_since(last_launch).min(Duration::from_millis(100));
                 last_launch = now;
-                credit += elapsed.as_nanos() * u128::from(config.ramp_per_sec);
+                credit += elapsed.as_nanos() * u128::from(config.ramp_per_sec.0);
                 let due = credit / 1_000_000_000;
                 credit %= 1_000_000_000;
                 let remaining = u128::from(config.connections - summary.attempted);

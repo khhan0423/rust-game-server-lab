@@ -8,16 +8,13 @@ use axum::Router;
 use axum::extract::State;
 use axum::response::Response;
 use axum::routing::get;
+use infra::admin::{LIVE, METRICS, READY};
 
 use crate::AppState;
 use crate::config::WatchedServer;
 use crate::pages::render;
 
-pub(super) const RUNTIME_METRICS: [&str; 3] = [
-    "runtime_workers",
-    "runtime_alive_tasks",
-    "runtime_global_queue_depth",
-];
+use crate::metrics::{RUNTIME_METRICS, samples};
 
 #[derive(Template)]
 #[template(path = "servers.html")]
@@ -72,9 +69,9 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
     let address = server.admin_addr;
     let root = format!("http://{address}");
     let (live, ready, metrics) = tokio::join!(
-        client.get(format!("{root}/health/live")).send(),
-        client.get(format!("{root}/health/ready")).send(),
-        client.get(format!("{root}/metrics")).send(),
+        client.get(format!("{root}{LIVE}")).send(),
+        client.get(format!("{root}{READY}")).send(),
+        client.get(format!("{root}{METRICS}")).send(),
     );
     let liveness = if live.is_ok_and(|response| response.status().is_success()) {
         "up"
@@ -94,9 +91,14 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
                     RUNTIME_METRICS[0],
                     RUNTIME_METRICS[1],
                     RUNTIME_METRICS[2],
+                    "net_connections_current",
                 ];
                 let samples = samples(&body)
-                    .filter(|sample| sample.labels.is_none())
+                    .filter(|sample| {
+                        sample.labels.is_none()
+                            || (sample.name == "net_connections_current"
+                                && sample.label("listener") == Some("client"))
+                    })
                     .collect::<Vec<_>>();
                 priority
                     .into_iter()
@@ -120,66 +122,5 @@ async fn poll(client: &reqwest::Client, server: &WatchedServer) -> ServerRow {
         liveness,
         readiness,
         metrics,
-    }
-}
-
-#[derive(Debug)]
-pub(super) struct Sample<'a> {
-    pub(super) name: &'a str,
-    pub(super) labels: Option<&'a str>,
-    pub(super) value: &'a str,
-}
-
-pub(super) fn samples(text: &str) -> impl Iterator<Item = Sample<'_>> {
-    text.lines().filter_map(|line| {
-        let line = line.trim_start();
-        let boundary = line.find(|ch: char| ch == '{' || ch.is_ascii_whitespace())?;
-        let (name, rest) = line.split_at(boundary);
-        let (labels, values) = if let Some(labels) = rest.strip_prefix('{') {
-            let (labels, values) = labels.rsplit_once('}')?;
-            (Some(labels), values)
-        } else {
-            (None, rest)
-        };
-        let value = values.split_ascii_whitespace().next()?;
-        (name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':'))
-            && value.parse::<f64>().is_ok())
-        .then_some(Sample {
-            name,
-            labels,
-            value,
-        })
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::samples;
-
-    #[test]
-    fn metrics_keep_numeric_samples_and_labels() {
-        for (text, expected) in [
-            (
-                "# TYPE server_ready gauge\nconnection_count 2\nserver_ready 1\n",
-                vec![("connection_count", None, "2"), ("server_ready", None, "1")],
-            ),
-            (
-                "bad nope\nwith_labels{shard=\"first shard\"} 5\nduration 1.2e-2 123456\n",
-                vec![
-                    ("with_labels", Some("shard=\"first shard\""), "5"),
-                    ("duration", None, "1.2e-2"),
-                ],
-            ),
-            ("\n# help\nmissing\n", vec![]),
-        ] {
-            assert_eq!(
-                samples(text)
-                    .map(|sample| (sample.name, sample.labels, sample.value))
-                    .collect::<Vec<_>>(),
-                expected
-            );
-        }
     }
 }

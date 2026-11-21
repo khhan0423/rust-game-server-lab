@@ -15,7 +15,7 @@ use crate::AppState;
 pub(super) struct Security {
     authority: String,
     origin: String,
-    pub(super) token: String,
+    token: String,
 }
 
 impl Security {
@@ -34,8 +34,13 @@ impl Security {
         })
     }
 
+    pub(super) fn token(&self) -> &str {
+        &self.token
+    }
+
     pub(super) fn accepts(&self, headers: &HeaderMap, token: &str) -> bool {
-        check_origin(headers, &self.origin) && self.token == token
+        check_origin(headers, &self.origin)
+            && infra::http::api::constant_time_eq(self.token.as_bytes(), token.as_bytes())
     }
 }
 

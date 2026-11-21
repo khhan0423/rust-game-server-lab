@@ -16,12 +16,38 @@ pub enum SanctionStatus {
 #[derive(Debug)]
 pub struct StatusChange<'a> {
     /// New state.
-    pub status: SanctionStatus,
+    status: SanctionStatus,
     /// Who requested the change.
-    pub operator: &'a str,
+    operator: &'a str,
     /// Why the change was requested.
-    pub reason: &'a str,
+    reason: &'a str,
 }
+
+impl<'a> StatusChange<'a> {
+    /// Validates the attribution before opening a database transaction.
+    pub fn new(status: SanctionStatus, operator: &'a str, reason: &'a str) -> Option<Self> {
+        let operator = operator.trim();
+        let reason = reason.trim();
+        if operator.is_empty()
+            || operator.len() > 128
+            || !operator.bytes().all(|b| (b' '..=b'~').contains(&b))
+            || reason.is_empty()
+            || reason.contains('\0')
+            || reason.chars().count() > 1000
+        {
+            return None;
+        }
+        Some(Self {
+            status,
+            operator,
+            reason,
+        })
+    }
+}
+
+#[cfg(test)]
+#[path = "audit_tests.rs"]
+mod tests;
 
 /// Outcome of a status request.
 #[derive(Debug, PartialEq, Eq)]
@@ -49,7 +75,7 @@ pub async fn set_status(
     let mut tx = pool.begin().await?;
     let Some(before) = sqlx::query_scalar!(
         "SELECT status AS \"status: AccountStatus\" FROM accounts WHERE account_id = $1 FOR UPDATE",
-        id.as_str(),
+        id.to_string(),
     )
     .fetch_optional(&mut *tx)
     .await?
@@ -65,7 +91,7 @@ pub async fn set_status(
     let changed = sqlx::query!(
         "UPDATE accounts SET status = $1 WHERE account_id = $2",
         after as _,
-        id.as_str()
+        id.to_string()
     )
     .execute(&mut *tx)
     .await?
@@ -79,7 +105,7 @@ pub async fn set_status(
         "INSERT INTO ops_audit (operator, action, account_id, before_status, after_status, reason)
          VALUES ($1, 'set_status', $2, $3, $4, $5)",
         change.operator,
-        id.as_str(),
+        id.to_string(),
         before as _,
         after as _,
         change.reason,

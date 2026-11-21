@@ -20,6 +20,7 @@ tokio-util = { workspace = true, features = ["codec"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+testkit = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
 
 [lints]

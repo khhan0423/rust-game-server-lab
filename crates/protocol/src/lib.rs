@@ -8,6 +8,25 @@ pub use id::{
 };
 pub use packets::{ClientPacket, ControlPacket, MESSAGE_SPECS, ServerPacket};
 
+/// Version advertised and accepted by the current session handshake.
+pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Stable diagnostic label for a specified wire close reason.
+pub const fn close_reason_label(reason: wire::CloseReason) -> Option<&'static str> {
+    use wire::CloseReason as R;
+    Some(match reason {
+        R::Unspecified => return None,
+        R::Logout => "logout",
+        R::DuplicateLogin => "duplicate_login",
+        R::Maintenance => "maintenance",
+        R::UpdateRequired => "update_required",
+        R::Banned => "banned",
+        R::ServerShutdown => "shutdown",
+        R::IdleTimeout => "idle_timeout",
+        R::AuthenticationFailed => "auth_failed",
+    })
+}
+
 /// Protobuf payloads. Session and game rules are applied after wire decoding.
 #[expect(
     clippy::doc_markdown,

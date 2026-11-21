@@ -1622,6 +1622,7 @@ dependencies = [
  "rand 0.10.4",
  "serde",
  "serde_json",
+ "testkit",
  "tokio",
  "tokio-util",
  "tracing",
@@ -2040,8 +2041,10 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 name = "db"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "sqlx",
  "thiserror 2.0.21",
+ "uuid",
 ]
 
 [[package]]
@@ -2569,6 +2572,7 @@ dependencies = [
  "protocol",
  "reqwest",
  "serde",
+ "testkit",
  "tokio",
  "tokio-util",
  "tracing",
@@ -3655,9 +3659,14 @@ name = "net"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "metrics",
  "protocol",
+ "serde",
  "thiserror 2.0.21",
+ "tokio",
  "tokio-util",
+ "toml",
+ "tracing",
 ]
 
 [[package]]
@@ -4059,6 +4068,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "testkit",
  "tokio",
  "tracing",
  "uuid",
@@ -4380,6 +4390,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "testkit",
  "tokio",
  "tracing",
  "uuid",
@@ -4857,6 +4868,7 @@ dependencies = [
  "reqwest",
  "serde",
  "sqlx",
+ "testkit",
  "tokio",
  "tracing",
 ]
@@ -5281,6 +5293,16 @@ dependencies = [
  "once_cell",
  "rustix 1.1.6",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "testkit"
+version = "0.1.0"
+dependencies = [
+ "infra",
+ "reqwest",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

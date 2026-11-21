@@ -2,35 +2,41 @@
 
 use std::fmt;
 
-/// Publisher account identifier, stored as text in the login database.
-#[derive(Debug, PartialEq, Eq)]
-pub struct AccountId(String);
-
+/// Publisher account identifier, stored as canonical UUID text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountId(uuid::Uuid);
 impl AccountId {
-    /// Wraps the account identifier assigned by the caller.
-    pub const fn new(value: String) -> Self {
+    /// Wraps a UUID assigned by the caller.
+    pub const fn new(value: uuid::Uuid) -> Self {
         Self(value)
     }
-
-    /// Borrows the identifier.
-    pub fn as_str(&self) -> &str {
-        &self.0
+    /// Parses an identifier from text.
+    pub fn parse(value: &str) -> Result<Self, uuid::Error> {
+        uuid::Uuid::parse_str(value).map(Self)
+    }
+}
+impl fmt::Display for AccountId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
-/// Subject of a guest login identity.
-#[derive(Debug)]
-pub struct GuestId(String);
-
+/// Guest identity subject, stored as canonical UUID text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuestId(uuid::Uuid);
 impl GuestId {
-    /// Wraps the subject assigned by the caller.
-    pub const fn new(value: String) -> Self {
+    /// Wraps a UUID assigned by the caller.
+    pub const fn new(value: uuid::Uuid) -> Self {
         Self(value)
     }
-
-    /// Borrows the subject.
-    pub fn as_str(&self) -> &str {
-        &self.0
+    /// Parses an identifier from text.
+    pub fn parse(value: &str) -> Result<Self, uuid::Error> {
+        uuid::Uuid::parse_str(value).map(Self)
+    }
+}
+impl fmt::Display for GuestId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

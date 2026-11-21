@@ -1,6 +1,9 @@
 //! Crate dedicated to DB access. SQL and storage access code lives only here (guidelines section 8).
 
-use std::time::Duration;
+use std::{
+    num::{NonZeroU32, NonZeroU64},
+    time::Duration,
+};
 
 use sqlx::migrate::{Migrate, MigrateError, Migrator};
 use sqlx::postgres::PgPoolOptions;
@@ -25,6 +28,9 @@ pub enum DbError {
     /// The database returned rows that break a rule the schema and queries are meant to keep.
     #[error("database state is inconsistent: {0}")]
     Inconsistent(&'static str),
+    /// A stored login identifier is not a UUID.
+    #[error("invalid stored login identifier")]
+    Identifier(#[from] uuid::Error),
     /// Applying or querying migrations failed.
     #[error("migration error")]
     Migrate(#[from] MigrateError),
@@ -39,22 +45,40 @@ pub enum DbError {
 }
 
 /// Connection pool settings (design 04 section 3).
-#[derive(Debug, Clone, Copy)]
-pub struct PoolSettings {
-    /// Upper bound on the number of connections open at the same time.
-    pub max_connections: u32,
-    /// Maximum time to wait to acquire a connection. Also applies to the first connection.
-    pub acquire_timeout: Duration,
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PoolConfig {
+    max_connections: NonZeroU32,
+    acquire_timeout_ms: NonZeroU64,
 }
 
-/// Connects to the DB and creates a pool. Returns an error if the connection fails.
-pub async fn connect(url: &str, settings: PoolSettings) -> Result<Pool, DbError> {
-    let pool = PgPoolOptions::new()
-        .max_connections(settings.max_connections)
-        .acquire_timeout(settings.acquire_timeout)
-        .connect(url)
-        .await?;
+impl PoolConfig {
+    async fn connect(&self, url: &str) -> Result<Pool, DbError> {
+        Ok(PgPoolOptions::new()
+            .max_connections(self.max_connections.get())
+            .acquire_timeout(Duration::from_millis(self.acquire_timeout_ms.get()))
+            .connect(url)
+            .await?)
+    }
+}
+
+/// Opens the configured pool and validates its schema before returning it.
+pub async fn open(url: &str, config: &PoolConfig, migrator: &Migrator) -> Result<Pool, DbError> {
+    let pool = config.connect(url).await?;
+    check_schema(&pool, migrator).await?;
     Ok(pool)
+}
+
+/// Applies migrations through a dedicated pool and drains it before returning.
+pub async fn migrate_url(
+    url: &str,
+    config: &PoolConfig,
+    migrator: &Migrator,
+) -> Result<(), DbError> {
+    let pool = config.connect(url).await?;
+    let result = migrate(&pool, migrator).await;
+    pool.close().await;
+    result
 }
 
 /// Applies pending migrations in order. Called by the deployment tool.

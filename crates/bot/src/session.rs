@@ -4,12 +4,12 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use bytes::BytesMut;
-use net::{Frame, FrameCodec, FrameFlags};
-use protocol::{ClientPacket, SequenceNumber, ServerPacket, wire};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use net::{Frame, FrameCodec, FrameReader};
+use protocol::{ClientPacket, ServerPacket, wire};
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::time::Instant;
-use tokio_util::codec::{Decoder, Encoder};
+use tokio_util::codec::Encoder;
 use tokio_util::sync::CancellationToken;
 
 use crate::Scenario;
@@ -77,59 +77,37 @@ pub(super) async fn connect(job: Job, stop: CancellationToken) -> Outcome {
 }
 
 async fn exchange(socket: &mut TcpStream, scenario: Scenario) -> anyhow::Result<&'static str> {
-    let mut bytes = BytesMut::new();
     match scenario {
         Scenario::ConnectHold => {}
         Scenario::ConnectAuth => {
             let packet = ClientPacket::Auth(wire::Auth {
                 login_token: rand::random::<[u8; 32]>().to_vec(),
-                protocol_version: 1,
+                protocol_version: protocol::PROTOCOL_VERSION,
                 client_version: env!("CARGO_PKG_VERSION").into(),
                 platform: std::env::consts::OS.into(),
             });
+            let mut bytes = BytesMut::new();
             FrameCodec::Client.encode(
-                Frame {
-                    message_id: packet.id(),
-                    flags: FrameFlags::NONE,
-                    seq: SequenceNumber::new(0),
-                    ack: SequenceNumber::new(0),
-                    payload: packet.encode().into(),
-                },
+                Frame::unsequenced(packet.id(), packet.encode().into()),
                 &mut bytes,
             )?;
             socket.write_all(&bytes).await?;
-            bytes.clear();
         }
     }
-    loop {
-        if let Some(frame) = FrameCodec::Client.decode(&mut bytes)? {
-            let packet = ServerPacket::decode(frame.message_id, &frame.payload)?;
-            if let ServerPacket::Close(close) = packet {
-                return close_label(wire::CloseReason::try_from(close.reason)?, scenario);
-            }
-            anyhow::bail!("unexpected server packet during handshake");
-        }
-        bytes.reserve(4096);
-        if socket.read_buf(&mut bytes).await? == 0 {
-            anyhow::ensure!(bytes.is_empty(), "incomplete frame at end of stream");
-            return Ok("peer_closed");
-        }
+    let Some(frame) = FrameReader::new(socket, FrameCodec::Client).read().await? else {
+        return Ok("peer_closed");
+    };
+    let packet = ServerPacket::decode(frame.message_id, &frame.payload)?;
+    let ServerPacket::Close(close) = packet else {
+        anyhow::bail!("unexpected server packet during handshake")
+    };
+    let reason = wire::CloseReason::try_from(close.reason)?;
+    if matches!(
+        (reason, scenario),
+        (wire::CloseReason::IdleTimeout, Scenario::ConnectHold)
+    ) {
+        return Ok("auth_timeout");
     }
-}
-
-fn close_label(reason: wire::CloseReason, scenario: Scenario) -> anyhow::Result<&'static str> {
-    Ok(match reason {
-        wire::CloseReason::Unspecified => anyhow::bail!("server sent an unspecified close reason"),
-        wire::CloseReason::Logout => "logout",
-        wire::CloseReason::DuplicateLogin => "duplicate_login",
-        wire::CloseReason::Maintenance => "maintenance",
-        wire::CloseReason::UpdateRequired => "update_required",
-        wire::CloseReason::Banned => "banned",
-        wire::CloseReason::ServerShutdown => "shutdown",
-        wire::CloseReason::IdleTimeout => match scenario {
-            Scenario::ConnectHold => "auth_timeout",
-            Scenario::ConnectAuth => "idle_timeout",
-        },
-        wire::CloseReason::AuthenticationFailed => "auth_failed",
-    })
+    protocol::close_reason_label(reason)
+        .ok_or_else(|| anyhow::anyhow!("server sent an unspecified close reason"))
 }

@@ -4,11 +4,11 @@
 <p class="kicker">Publisher / <a href="/accounts">Accounts</a></p>
 <h1>Account detail</h1>
 <div class="panel">
-  <dl><dt>Account ID</dt><dd><code>{{ detail.account.id.0 }}</code></dd>
+  <dl><dt>Account ID</dt><dd><code>{{ detail.account.id }}</code></dd>
   <dt>Status</dt><dd><span class="badge" data-state="{{ detail.account.status.as_str() }}">{{ detail.account.status.as_str() }}</span></dd>
   <dt>Created (UTC)</dt><dd><time>{{ detail.account.created_at }}</time></dd></dl>
   {% if let Some((status, label)) = action %}
-  <form class="status" method="post" action="/accounts/{{ detail.account.id.0 }}">
+  <form class="status" method="post" action="/accounts/{{ detail.account.id }}">
     <input type="hidden" name="csrf" value="{{ token }}">
     <input type="hidden" name="status" value="{{ status }}">
     <label for="reason">Reason</label>

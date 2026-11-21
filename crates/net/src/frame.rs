@@ -54,6 +54,19 @@ pub struct Frame {
     pub payload: Bytes,
 }
 
+impl Frame {
+    /// Wraps a control payload without replay, sequence or acknowledgement.
+    pub fn unsequenced(message_id: MessageId, payload: Bytes) -> Self {
+        Self {
+            message_id,
+            flags: FrameFlags::NONE,
+            seq: SequenceNumber::new(0),
+            ack: SequenceNumber::new(0),
+            payload,
+        }
+    }
+}
+
 /// Client protocol codec at either endpoint of the connection.
 #[derive(Debug, Clone, Copy)]
 pub enum FrameCodec {

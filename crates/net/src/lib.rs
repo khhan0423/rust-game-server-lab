@@ -2,9 +2,15 @@
 
 mod envelope;
 mod frame;
+mod listener;
+mod reader;
+pub use listener::{
+    CloseCause, CloseLabel, ConnId, Connection, ConnectionHandler, Listener, ListenerConfig, Outbox,
+};
 
 pub use envelope::{ENVELOPE_HEADER_SIZE, Envelope, EnvelopeCodec, EnvelopeMessage};
 pub use frame::{FRAME_HEADER_SIZE, Frame, FrameCodec, FrameFlags};
+pub use reader::FrameReader;
 
 /// Maximum total wire size, including the corresponding header.
 pub const MAX_PACKET_SIZE: usize = 64 * 1024;

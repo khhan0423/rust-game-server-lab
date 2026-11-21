@@ -1,4 +1,4 @@
-//! OS-backed credential generation, wire encoding, and API-key comparison.
+//! OS-backed credential generation and wire encoding.
 
 use rand::TryRng;
 
@@ -30,14 +30,4 @@ pub(super) fn decode(text: &str) -> Option<[u8; 32]> {
         *byte = (high << 4) | low;
     }
     Some(bytes)
-}
-
-pub(super) fn key_matches(expected: &[u8], supplied: &[u8]) -> bool {
-    // Timing depends on the supplied length, not on which bytes match.
-    let mut diff = expected.len() ^ supplied.len();
-    for (index, byte) in supplied.iter().enumerate() {
-        let other = expected.get(index).copied().unwrap_or_default();
-        diff |= usize::from(std::hint::black_box(byte ^ other));
-    }
-    diff == 0
 }
