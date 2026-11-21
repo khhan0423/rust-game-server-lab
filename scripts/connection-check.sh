@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/lib.sh
 mode=$1
 shift
 if [[ $(uname -s) == MINGW* || $(uname -s) == MSYS* ]]; then
@@ -21,31 +22,29 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 # The last stdout line is always "RESULT <mode> PASS" or "RESULT <mode> FAIL: <reason>", so a watcher can key on it.
 fail() { printf '%s: %s\n' "$mode" "$1" >&2; printf 'RESULT %s FAIL: %s\n' "$mode" "$1"; exit 1; }
-export SQLX_OFFLINE=true
-cargo build --bin gateway --bin bot >"$temp/build" 2>&1 || fail 'building Gateway and bot failed'
+build_unless_prebuilt --bin gateway --bin bot >"$temp/build" 2>&1 || fail 'building Gateway and bot failed'
 export RUN_PREBUILT=1
-config=dev/config/gateway.stress.toml
-if [[ $mode == smoke ]]; then
-    config=$temp/gateway.toml
-    sed 's/auth_timeout_ms = 10000/auth_timeout_ms = 1000/' dev/config/gateway.toml >"$config"
-else
-    export BOT_CONFIG=dev/config/bot.stress.toml
-fi
+config=${GATEWAY_CONFIG:-dev/config/gateway.$mode.toml}
+if [[ $mode == stress ]]; then export BOT_CONFIG=${BOT_CONFIG:-dev/config/bot.stress.toml}; fi
 GATEWAY_CONFIG=$config bash scripts/run-gateway.sh >"$temp/ready" 2>"$temp/errors" &
 pid=$!
 deadline=$((SECONDS + 20))
-while ! grep -q '^ready admin=127\.0\.0\.1:18490 client=127\.0\.0\.1:18400$' "$temp/ready"; do
+while ! grep -q '^ready ' "$temp/ready"; do
     if ! kill -0 "$pid" 2>/dev/null || (( SECONDS >= deadline )); then fail 'Gateway did not announce readiness'; fi
     sleep 0.1
 done
-metrics() { curl --fail --silent --max-time 2 http://127.0.0.1:18490/metrics; }
-current() { awk '$1 == "gateway_connections_current" { print $2 }' <<< "$1"; }
-sample() { printf '%s\n' "$1" | awk '/^(gateway_|runtime_)/'; }
+read -r -a fields < "$temp/ready"
+admin= client=
+for field in "${fields[@]}"; do case $field in admin=*) admin=${field#admin=} ;; client=*) client=${field#client=} ;; esac; done
+[[ -n $admin && -n $client ]] || fail 'Gateway did not announce readiness'
+metrics() { curl --fail --silent --max-time 2 "http://$admin/metrics"; }
+current() { awk '$1 == "net_connections_current{listener=\"client\"}" { print $2 }' <<< "$1"; }
+sample() { printf '%s\n' "$1" | awk '/^(net_|gateway_auth_|runtime_)/'; }
 if [[ $mode == smoke ]]; then
-    bash scripts/run-bot.sh connect-auth --connections 50 --expect-established 50 --expect-close-reason auth_failed || fail 'auth scenario failed'
-    bash scripts/run-bot.sh connect-hold --connections 20 --hold-secs 3 --expect-established 20 --expect-close-reason auth_timeout || fail 'hold scenario failed'
+    bash scripts/run-bot.sh connect-auth --gateway "$client" --connections 50 --expect-established 50 --expect-close-reason auth_failed || fail 'auth scenario failed'
+    bash scripts/run-bot.sh connect-hold --gateway "$client" --connections 20 --hold-secs 3 --expect-established 20 --expect-close-reason auth_timeout || fail 'hold scenario failed'
 else
-    bash scripts/run-bot.sh connect-hold --connections "$connections" --ramp-per-sec "$ramp" --hold-secs "$hold" \
+    bash scripts/run-bot.sh connect-hold --gateway "$client" --connections "$connections" --ramp-per-sec "$ramp" --hold-secs "$hold" \
         --expect-established "$connections" >"$temp/bot" &
     bot_pid=$!
     peak=-1

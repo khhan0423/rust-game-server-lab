@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec bash "$(dirname "$0")/run-service.sh" server run "$@"
+exec bash "$(dirname "$0")/run-service.sh" server "$@"

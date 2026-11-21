@@ -1,0 +1,13 @@
+[process]
+name = "gateway"
+environment = "development"
+admin_addr = "127.0.0.1:18490"
+log_level = "info"
+
+[client]
+listen_addr = "127.0.0.1:18400"
+max_connections = 4096
+auth_timeout_ms = 1000
+write_queue_capacity = 256
+connections_per_ip_per_sec = 1000
+log_connections = true

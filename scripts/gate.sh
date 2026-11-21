@@ -6,10 +6,8 @@ if ! command -v protoc >/dev/null 2>&1; then
     printf '%s\n' 'protoc not found on PATH; install the Protocol Buffers compiler before running the gate.' >&2
     exit 1
 fi
-# An already set DATABASE_URL (compose provides it inside the container) is not overwritten by the .env value.
-preset_database_url="${DATABASE_URL:-}"
-if [ -f .env ]; then set -a; . ./.env; set +a; fi
-if [ -n "$preset_database_url" ]; then export DATABASE_URL="$preset_database_url"; fi
+. scripts/lib.sh
+load_env
 export SQLX_OFFLINE=true
 # The vendored htmx file must match its recorded hash.
 (cd crates/ops/assets && grep -v '^#' htmx.sha256 | sha256sum --check --quiet -)

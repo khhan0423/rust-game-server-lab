@@ -1,2 +1,2 @@
-& "$PSScriptRoot/run-service.ps1" server run @args
+& "$PSScriptRoot/run-service.ps1" server @args
 exit $LASTEXITCODE
